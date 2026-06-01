@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agregar Usuario - Hotel Casausumacinta</title>
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    html, body {
+      min-height: 100%;
+      margin: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #e8f1e4 0%, #f4f8f2 100%);
+      color: #222;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    .agregar-usuario-container {
+      display: flex;
+      min-height: 100vh;
+      width: 100%;
+      background: transparent;
+    }
+
+    .usuario-sidebar {
+      width: 260px;
+      min-width: 260px;
+      background: linear-gradient(180deg, #35462A 0%, #29311d 100%);
+      color: white;
+      padding: 32px 24px;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 4px 0 20px rgba(0, 0, 0, 0.16);
+    }
+
+    .usuario-sidebar h2 {
+      font-size: 20px;
+      margin-bottom: 28px;
+      border-bottom: 2px solid #C1A44D;
+      padding-bottom: 14px;
+    }
+
+    .nav-menu {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      flex: 1;
+    }
+
+    .nav-item {
+      padding: 14px 18px;
+      background: rgba(255, 255, 255, 0.08);
+      color: white;
+      border: none;
+      border-radius: 14px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.3s ease;
+      text-align: left;
+      font-size: 15px;
+    }
+
+    .nav-item:hover {
+      background: rgba(193, 164, 77, 0.24);
+      transform: translateX(4px);
+    }
+
+    .nav-item.active {
+      background: #C1A44D;
+      color: #35462A;
+      font-weight: 700;
+    }
+
+    .usuario-main {
+      flex: 1;
+      padding: 16px 18px 30px;
+      overflow-y: auto;
+      background: transparent;
+      min-height: 100vh;
+    }
+
+    .content-card {
+      background: white;
+      border-radius: 18px;
+      padding: 28px 32px;
+      box-shadow: 0 16px 38px rgba(0, 0, 0, 0.08);
+      margin: 0 auto 28px;
+      width: 100%;
+      max-width: none;
+    }
+
+    .content-card h2 {
+      color: #35462A;
+      margin-bottom: 25px;
+      font-size: 22px;
+      border-bottom: 3px solid #C1A44D;
+      padding-bottom: 12px;
+    }
+
+    .tab-buttons {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+
+    .tab-button {
+      padding: 10px 20px;
+      background: #95a5a6;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.3s;
+    }
+
+    .tab-button.active {
+      background: #C1A44D;
+      color: #35462A;
+    }
+
+    .tab-button:hover {
+      background: #C1A44D;
+      color: #35462A;
+    }
+
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+      animation: fadeIn 0.3s;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 24px;
+      margin-bottom: 24px;
+      align-items: start;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .form-group label {
+      margin-bottom: 8px;
+      font-weight: 600;
+      color: #35462A;
+      font-size: 14px;
+    }
+
+    .form-group input[type="text"],
+    .form-group input[type="email"],
+    .form-group input[type="tel"],
+    .form-group input[type="date"],
+    .form-group input[type="password"] {
+      padding: 12px 15px;
+      border: 2px solid #e0e0e0;
+      border-radius: 8px;
+      font-size: 14px;
+      transition: all 0.3s ease;
+      font-family: inherit;
+    }
+
+    .form-group input:focus {
+      outline: none;
+      border-color: #C1A44D;
+      box-shadow: 0 0 0 3px rgba(193, 164, 77, 0.1);
+    }
+
+    .form-group.full {
+      grid-column: 1 / -1;
+    }
+
+    .file-input-wrapper {
+      position: relative;
+      overflow: hidden;
+      display: block;
+      width: 100%;
+    }
+
+    .file-input-label {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      background: linear-gradient(135deg, #C1A44D 0%, #D4B85A 100%);
+      color: white;
+      border-radius: 8px;
+      cursor: pointer;
+      text-align: center;
+      font-weight: 600;
+      transition: all 0.3s ease;
+      border: 2px dashed rgba(255, 255, 255, 0.3);
+      min-height: 50px;
+    }
+
+    .file-input-label:hover {
+      background: linear-gradient(135deg, #966237 0%, #a85a3a 100%);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(150, 98, 55, 0.3);
+    }
+
+    .file-input-wrapper input[type="file"] {
+      display: none;
+    }
+
+    .file-name {
+      font-size: 13px;
+      color: #35462A;
+      margin-top: 10px;
+      padding: 8px 12px;
+      background: #f0f7f0;
+      border-radius: 6px;
+      border-left: 3px solid #5FAB67;
+      font-weight: 500;
+    }
+
+    .file-name.has-file {
+      background: #e8f5e9;
+      color: #2e7d32;
+    }
+
+    .file-name.no-file {
+      background: #ffebee;
+      color: #c62828;
+    }
+
+    .camera-section {
+      margin-top: 30px;
+      padding: 28px;
+      background: linear-gradient(135deg, #f6f8f2 0%, #e9efe5 100%);
+      border-radius: 18px;
+      border: 1px solid #d7e2d1;
+      text-align: center;
+    }
+
+    .camera-section h3 {
+      color: #35462A;
+      margin-bottom: 10px;
+      font-size: 18px;
+    }
+
+    .camera-section p {
+      color: #666;
+      font-size: 13px;
+      margin-bottom: 20px;
+    }
+
+    #videoCapture {
+      width: 100%;
+      max-width: 350px;
+      height: auto;
+      aspect-ratio: 4/3;
+      border-radius: 8px;
+      background: #000;
+      margin: 15px auto;
+      display: block;
+      border: 3px solid #35462A;
+      object-fit: cover;
+    }
+
+    .camera-buttons {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      margin-top: 10px;
+      flex-wrap: wrap;
+    }
+
+    .btn-camera {
+      padding: 10px 20px;
+      background: #35462A;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: background 0.3s;
+    }
+
+    .btn-camera:hover {
+      background: #4a5a38;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(53, 70, 42, 0.3);
+    }
+
+    .btn-camera.stop {
+      background: #f44336;
+    }
+
+    .btn-camera.stop:hover {
+      background: #da190b;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(244, 67, 54, 0.3);
+    }
+
+    .btn-submit {
+      padding: 12px 35px;
+      background: linear-gradient(135deg, #5FAB67 0%, #35462A 100%);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 16px;
+      font-weight: 600;
+      transition: all 0.3s ease;
+    }
+
+    .btn-submit:hover {
+      background: linear-gradient(135deg, #4a8a54 0%, #2d3a24 100%);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(95, 171, 103, 0.3);
+    }
+
+    .btn-cancel {
+      padding: 12px 35px;
+      background: #95a5a6;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 16px;
+      font-weight: 600;
+      transition: all 0.3s ease;
+    }
+
+    .btn-cancel:hover {
+      background: #7f8c8d;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(149, 165, 166, 0.3);
+    }
+
+    .button-group {
+      display: flex;
+      gap: 10px;
+      margin-top: 20px;
+      flex-wrap: wrap;
+    }
+
+    .usuario-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 30px;
+      background: white;
+      padding: 20px 30px;
+      border-radius: 12px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+    }
+
+    .usuario-header h1 {
+      color: #35462A;
+      font-size: 28px;
+    }
+
+    .btn-logout {
+      padding: 10px 20px;
+      background: #e74c3c;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.3s ease;
+    }
+
+    .btn-logout:hover {
+      background: #c0392b;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(231, 76, 60, 0.3);
+    }
+
+    .preview-foto {
+      max-width: 150px;
+      max-height: 150px;
+      margin-top: 10px;
+      border-radius: 5px;
+      display: none;
+    }
+
+    .canvas-capture {
+      display: none;
+    }
+
+    .button-group {
+      display: flex;
+      gap: 15px;
+      margin-top: 30px;
+      flex-wrap: wrap;
+    }
+
+    .tab-buttons {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+
+    .tab-button {
+      padding: 10px 20px;
+      background: #95a5a6;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.3s ease;
+    }
+
+    .tab-button.active {
+      background: #C1A44D;
+      color: #35462A;
+    }
+
+    .tab-button:hover {
+      background: #C1A44D;
+      color: #35462A;
+    }
+
+    .message-container {
+      margin-top: 20px;
+      padding: 15px 20px;
+      border-radius: 8px;
+      font-weight: 600;
+      display: none;
+    }
+
+    .message-container.success {
+      background: #c8e6c9;
+      color: #2e7d32;
+      border-left: 4px solid #2e7d32;
+      display: block;
+    }
+
+    .message-container.error {
+      background: #ffcdd2;
+      color: #c62828;
+      border-left: 4px solid #c62828;
+      display: block;
+    }
+
+    @media (max-width: 768px) {
+      .usuario-sidebar {
+        width: 100%;
+        height: auto;
+        position: relative;
+        padding: 20px;
+      }
+
+      .usuario-main {
+        margin-left: 0;
+        padding: 20px;
+      }
+
+      .usuario-header {
+        flex-direction: column;
+        gap: 15px;
+      }
+
+      .usuario-header h1 {
+        font-size: 20px;
+      }
+
+      .form-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .tab-buttons {
+        justify-content: center;
+      }
+
+      #videoCapture {
+        max-width: 100%;
+      }
+
+      .button-group {
+        flex-direction: column;
+      }
+
+      .btn-submit,
+      .btn-cancel {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="agregar-usuario-container">
+    <!-- Sidebar de navegación -->
+    <div class="usuario-sidebar">
+      <h2>Gestión de Usuarios</h2>
+      <nav class="nav-menu">
+        <button class="nav-item active" data-tab="agregar">➕ Agregar Usuario</button>
+        <button class="nav-item" data-tab="lista">📋 Ver Usuarios</button>
+        <button class="nav-item" data-tab="editar">✏️ Editar Usuario</button>
+        <button class="nav-item" data-tab="eliminar">🗑️ Eliminar Usuario</button>
+      </nav>
+      <button class="btn-logout" onclick="cerrarSesion()" style="margin-top: auto; width: 100%;">Cerrar Sesión</button>
+    </div>
+
+    <!-- Contenido principal -->
+    <div class="usuario-main">
+      <div class="usuario-header">
+        <h1>Sistema de Gestión de Usuarios</h1>
+        <a href="dashboard.html" class="btn-cancel">Ir al Dashboard</a>
+      </div>
+
+      <!-- Tab de Agregar Usuario -->
+      <div id="agregar" class="tab-content active">
+        <div class="content-card">
+          <h2>Agregar Nuevo Usuario</h2>
+          
+          <form id="formAgregarUsuario" class="form-usuarios">
+            <div class="form-grid">
+              <!-- Nombre Completo -->
+              <div class="form-group">
+                <label for="nombreCompleto">Nombre Completo:</label>
+                <input type="text" id="nombreCompleto" name="nombreCompleto" required placeholder="Ej: Juan Pérez García">
+              </div>
+
+              <!-- Usuario -->
+              <div class="form-group">
+                <label for="usuario">Usuario:</label>
+                <input type="text" id="usuario" name="usuario" required placeholder="Ej: juanperez">
+              </div>
+
+              <!-- Email -->
+              <div class="form-group">
+                <label for="correo">Correo Electrónico:</label>
+                <input type="email" id="correo" name="correo" required placeholder="Ej: juan@example.com">
+              </div>
+
+              <!-- Fecha de Nacimiento -->
+              <div class="form-group">
+                <label for="fechaNacimiento">Fecha de Nacimiento:</label>
+                <input type="date" id="fechaNacimiento" name="fechaNacimiento" required>
+              </div>
+
+              <!-- Número de Teléfono -->
+              <div class="form-group">
+                <label for="telefono">Número de Teléfono:</label>
+                <input type="tel" id="telefono" name="telefono" required placeholder="Ej: +52 5512345678">
+              </div>
+
+              <!-- Dirección -->
+              <div class="form-group">
+                <label for="direccion">Dirección:</label>
+                <input type="text" id="direccion" name="direccion" required placeholder="Calle, número, apto">
+              </div>
+
+              <!-- Contraseña -->
+              <div class="form-group">
+                <label for="contraseña">Contraseña:</label>
+                <input type="password" id="contraseña" name="contraseña" required placeholder="Mínimo 6 caracteres">
+              </div>
+
+              <!-- Confirmar Contraseña -->
+              <div class="form-group">
+                <label for="confirmarContraseña">Confirmar Contraseña:</label>
+                <input type="password" id="confirmarContraseña" name="confirmarContraseña" required placeholder="Confirma tu contraseña">
+              </div>
+
+              <!-- INE Anverso -->
+              <div class="form-group full">
+                <label>INE Anverso (Foto/PDF):</label>
+                <div class="file-input-wrapper">
+                  <label for="ineAnverso" class="file-input-label">📄 Seleccionar archivo</label>
+                  <input type="file" id="ineAnverso" name="ineAnverso" accept="image/*,.pdf" required>
+                </div>
+                <div class="file-name" id="ineAnversoName">No se ha seleccionado archivo</div>
+              </div>
+
+              <!-- INE Reverso -->
+              <div class="form-group full">
+                <label>INE Reverso (Foto/PDF):</label>
+                <div class="file-input-wrapper">
+                  <label for="ineReverso" class="file-input-label">📄 Seleccionar archivo</label>
+                  <input type="file" id="ineReverso" name="ineReverso" accept="image/*,.pdf" required>
+                </div>
+                <div class="file-name" id="ineReversoName">No se ha seleccionado archivo</div>
+              </div>
+
+              <!-- Comprobante de Domicilio -->
+              <div class="form-group full">
+                <label>Comprobante de Domicilio (Foto/PDF):</label>
+                <div class="file-input-wrapper">
+                  <label for="comprobanteDomicilio" class="file-input-label">📄 Seleccionar archivo</label>
+                  <input type="file" id="comprobanteDomicilio" name="comprobanteDomicilio" accept="image/*,.pdf" required>
+                </div>
+                <div class="file-name" id="comprobanteDomicilioName">No se ha seleccionado archivo</div>
+              </div>
+
+              <!-- Foto de Perfil -->
+              <div class="form-group full">
+                <label>Foto de Perfil (Foto/PDF):</label>
+                <div class="file-input-wrapper">
+                  <label for="fotoPerfil" class="file-input-label">📄 Seleccionar archivo</label>
+                  <input type="file" id="fotoPerfil" name="fotoPerfil" accept="image/*,.pdf" required>
+                </div>
+                <div class="file-name" id="fotoPerfilName">No se ha seleccionado archivo</div>
+              </div>
+            </div>
+
+            <!-- Sección de Cámara para capturar foto de creación -->
+            <div class="camera-section">
+              <h3>📷 Capturar Foto de Creación de Usuario</h3>
+              <p>Se capturará automáticamente quién está creando este usuario</p>
+              <video id="videoCapture"></video>
+              <canvas id="canvasCapture" class="canvas-capture"></canvas>
+              <div class="camera-buttons">
+                <button type="button" class="btn-camera" id="iniciarCamara">Iniciar Cámara</button>
+                <button type="button" class="btn-camera stop" id="tomarFoto" style="display: none;">Tomar Foto</button>
+                <button type="button" class="btn-camera stop" id="detenerCamara" style="display: none;">Detener</button>
+              </div>
+              <div id="fotoCreacionStatus" style="margin-top: 10px; color: #e74c3c; font-weight: bold;"></div>
+            </div>
+
+            <!-- Botones de acción -->
+            <div class="button-group">
+              <button type="submit" class="btn-submit">Crear Usuario</button>
+              <button type="reset" class="btn-cancel">Limpiar Formulario</button>
+            </div>
+
+            <div id="mensajeAgregar" class="message-container"></div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Tab de Ver Usuarios -->
+      <div id="lista" class="tab-content">
+        <div class="content-card">
+          <h2>Lista de Usuarios</h2>
+          <div id="contenidoLista"></div>
+        </div>
+      </div>
+
+      <!-- Tab de Editar Usuario -->
+      <div id="editar" class="tab-content">
+        <div class="content-card">
+          <h2>Editar Usuario</h2>
+          <div id="contenidoEditar"></div>
+        </div>
+      </div>
+
+      <!-- Tab de Eliminar Usuario -->
+      <div id="eliminar" class="tab-content">
+        <div class="content-card">
+          <h2>Eliminar Usuario</h2>
+          <div id="contenidoEliminar"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="agregarusuario.js"></script>
+</body>
+</html>

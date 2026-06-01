@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hotel Casausumacinta - Login</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="login-page">
+  <div class="login-container">
+    <div class="login-card">
+      <div class="hotel-logo">
+        <img src="LOGO/LOGO.png" alt="Hotel Casausumacinta" class="logo-img" style="max-width: 150px;">
+      </div>
+
+      <div class="login-form-wrapper">
+        <!-- Formulario de Login -->
+        <div id="loginForm" class="form-section">
+          <form id="formLogin" class="login-form">
+            <div class="form-group">
+              <label for="usuario">Usuario:</label>
+              <input type="text" id="usuario" name="usuario" required placeholder="Ingresa tu usuario">
+            </div>
+
+            <div class="form-group">
+              <label for="contraseña">Contraseña:</label>
+              <input type="password" id="contraseña" name="contraseña" required placeholder="Ingresa tu contraseña">
+            </div>
+
+            <button type="submit" class="btn-login">Iniciar Sesión</button>
+          </form>
+
+          <div class="login-footer">
+            <a href="#" class="link-forgot-password" onclick="mostrarFormularioOlvideContraseña(event)">¿Olvidaste tu contraseña?</a>
+          </div>
+        </div>
+
+        <!-- Formulario de Recuperación de Contraseña -->
+        <div id="forgotPasswordForm" class="form-section" style="display: none;">
+          <h2>Recuperar Contraseña</h2>
+          <p class="form-description">Completa el formulario para que te ayudemos a recuperar tu contraseña.</p>
+          
+          <form id="formForgotPassword" class="login-form">
+            <div class="form-group">
+              <label for="nombreCompleto">Nombre Completo:</label>
+              <input type="text" id="nombreCompleto" name="nombreCompleto" required placeholder="Tu nombre completo">
+            </div>
+
+            <div class="form-group">
+              <label for="correo">Correo Electrónico:</label>
+              <input type="email" id="correo" name="correo" required placeholder="Tu correo electrónico">
+            </div>
+
+            <div class="form-group">
+              <label for="telefono">Número de Teléfono:</label>
+              <input type="tel" id="telefono" name="telefono" required placeholder="Tu número de teléfono">
+            </div>
+
+            <button type="submit" class="btn-login">Enviar Solicitud</button>
+          </form>
+
+          <div class="form-footer">
+            <a href="#" class="link-back" onclick="volverAlLogin(event)">← Volver al login</a>
+          </div>
+        </div>
+      </div>
+
+      <div id="cameraPreview" class="camera-preview" style="display: none;">
+        <video id="videoLogin"></video>
+        <button id="capturePhoto" class="btn-capture">Capturar Foto</button>
+        <canvas id="canvasLogin" style="display: none;"></canvas>
+      </div>
+
+      <div id="messageContainer" class="message-container"></div>
+    </div>
+  </div>
+
+  <script type="module" src="login.js"></script>
+</body>
+</html>
