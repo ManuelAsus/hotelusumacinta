@@ -1,14 +1,12 @@
 import { firebaseConfig } from './config.js';
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-auth.js";
-import { getFirestore, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-firestore.js";
-import { getStorage, ref, uploadBytes } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-storage.js";
+import { getFirestore, collection, query, where, getDocs, addDoc } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-firestore.js";
 
 // Inicializar Firebase
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
-const storage = getStorage(app);
 
 let video = null;
 let stream = null;
@@ -87,7 +85,18 @@ async function iniciarCapturaDeFoto(userId) {
 
     video.srcObject = stream;
 
-    // Capturar foto
+    // Asegurar reproducción automática y en móviles
+    video.autoplay = true;
+    video.playsInline = true;
+    try {
+      await video.play();
+    } catch (playError) {
+      console.warn('video.play() falló:', playError);
+    }
+
+    // Capturar foto (asegurar un único listener)
+    const captureBtn = document.getElementById('capturePhoto');
+    captureBtn.replaceWith(captureBtn.cloneNode(true));
     document.getElementById('capturePhoto').addEventListener('click', () => {
       capturarFoto(userId);
     });
@@ -104,40 +113,36 @@ async function capturarFoto(userId) {
   try {
     const canvas = document.getElementById('canvasLogin');
     const context = canvas.getContext('2d');
-    const video = document.getElementById('videoLogin');
+    const videoEl = document.getElementById('videoLogin');
 
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const w = videoEl.videoWidth || 640;
+    const h = videoEl.videoHeight || 480;
+    canvas.width = w;
+    canvas.height = h;
+    context.drawImage(videoEl, 0, 0, w, h);
 
-    // Convertir canvas a blob
-    canvas.toBlob(async (blob) => {
-      // Generar nombre de archivo con timestamp
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-      const filename = `login_${userId}_${timestamp}.jpg`;
+    // Obtener Base64 (dataURL)
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const filename = `login_${userId}_${timestamp}.jpg`;
 
-      // Subir a Storage
-      const photoRef = ref(storage, `fotoiniciodesesion/${filename}`);
-      await uploadBytes(photoRef, blob);
+    // Registrar en Firestore guardando la imagen como Base64 (campo fotoDataUrl)
+    const loginLogRef = collection(db, 'loginicios');
+    await addDoc(loginLogRef, {
+      userId: userId,
+      fechaHora: new Date(),
+      fotoFilename: filename,
+      fotoDataUrl: dataUrl,
+      timestamp: new Date().getTime()
+    });
 
-      // Registrar en Firestore
-      const loginLogRef = collection(db, 'loginicios');
-      await addDoc(loginLogRef, {
-        userId: userId,
-        fechaHora: new Date(),
-        foto: filename,
-        timestamp: new Date().getTime()
-      });
+    // Detener stream
+    if (stream) {
+      stream.getTracks().forEach(track => track.stop());
+    }
 
-      // Detener stream
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop());
-      }
-
-      // Redirigir al dashboard
-      window.location.href = 'dashboard.html';
-
-    }, 'image/jpeg', 0.9);
+    // Redirigir al dashboard
+    window.location.href = 'dashboard.html';
 
   } catch (error) {
     console.error('Error capturando foto:', error);
@@ -216,5 +221,4 @@ function volverAlLogin(e) {
   messageContainer.className = 'message-container';
 }
 
-// Importar addDoc para usar en capturarFoto
-import { addDoc } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-firestore.js";
+// Nota: `addDoc` ya se importa arriba junto con otros helpers de Firestore

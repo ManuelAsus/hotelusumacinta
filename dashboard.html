@@ -13,6 +13,26 @@
       margin-bottom: 30px;
     }
 
+    body.dashboard-body {
+      display: block;
+      justify-content: normal;
+      align-items: normal;
+      min-height: 100vh;
+      background: #f5f5f5;
+    }
+
+    .dashboard-container {
+      width: 100%;
+      min-height: 100vh;
+    }
+
+    .main-content {
+      margin-left: 250px;
+      padding: 20px 15px;
+      flex: 1;
+      overflow-y: auto;
+    }
+
     .stat-card {
       background: white;
       padding: 20px;
@@ -76,6 +96,47 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
+      color: #333;
+    }
+
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .room-actions {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      margin-top: 15px;
+    }
+
+    .room-actions input,
+    .room-actions select {
+      width: 100%;
+      padding: 12px 14px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+      font-size: 14px;
+    }
+
+    .status {
+      font-weight: 700;
+    }
+
+    .status-disponible {
+      color: #27ae60;
+    }
+
+    .status-ocupada {
+      color: #c0392b;
+    }
+
+    .status-mantenimiento {
+      color: #d35400;
     }
 
     .activity-log {
@@ -140,10 +201,12 @@
       <h2>📊 Dashboard</h2>
       <nav class="nav-menu">
         <button class="nav-item active" data-section="inicio">🏠 Inicio</button>
-        <button class="nav-item" data-section="usuarios">👥 Usuarios</button>
+        <button class="nav-item" data-section="huespedes">🧳 Huéspedes</button>
         <button class="nav-item" data-section="habitaciones">🛏️ Habitaciones</button>
         <button class="nav-item" data-section="reservas">📅 Reservas</button>
         <button class="nav-item" data-section="reportes">📈 Reportes</button>
+        <button class="nav-item" data-section="tickets">🎫 Tickets</button>
+        <button class="nav-item" data-section="caja">💰 Caja</button>
         <button class="nav-item" data-section="configuracion">⚙️ Configuración</button>
       </nav>
       <button class="nav-item btn-logout" onclick="cerrarSesion()" style="margin-top: auto; width: 100%; background: #e74c3c;">🚪 Cerrar Sesión</button>
@@ -155,7 +218,7 @@
       <div id="inicio" class="content-section active">
         <div class="welcome-section">
           <h1>👋 Bienvenido al Dashboard</h1>
-          <p>Sistema de Gestión del Hotel Casausumacinta</p>
+          <p>Sistema de Gestión del Hotel Casa Usumacinta</p>
           <div class="user-info">
             <span id="usuarioInfo">Cargando información...</span>
             <span id="horaActual"></span>
@@ -211,11 +274,36 @@
         </div>
       </div>
 
+      <!-- Sección Huéspedes -->
+      <div id="huespedes" class="content-section">
+        <div class="content-card">
+          <div class="section-header">
+            <h2>🧳 Gestión de Huéspedes</h2>
+            <button class="btn-primary" onclick="mostrarFormularioHuesped()">➕ Agregar Huésped</button>
+          </div>
+          <div class="room-actions" style="margin-top: 15px;">
+            <input id="buscarHuesped" type="search" placeholder="Buscar por nombre o teléfono" oninput="filtrarHuespedes(this.value)" style="flex: 1;">
+          </div>
+          <div id="tablaHuespedes" style="margin-top: 20px;"></div>
+        </div>
+      </div>
+
       <!-- Sección Habitaciones -->
       <div id="habitaciones" class="content-section">
         <div class="content-card">
-          <h2>🛏️ Gestión de Habitaciones</h2>
-          <button class="btn-primary" onclick="mostrarFormularioHabitacion()">➕ Agregar Habitación</button>
+          <div class="section-header">
+            <h2>🛏️ Gestión de Habitaciones</h2>
+            <button class="btn-primary" onclick="mostrarFormularioHabitacion()">➕ Agregar Habitación</button>
+          </div>
+          <div class="room-actions">
+            <input id="buscarHabitacion" type="search" placeholder="Buscar por número, tipo o estado" oninput="cargarHabitaciones(this.value, document.getElementById('filtroEstado').value)">
+            <select id="filtroEstado" onchange="cargarHabitaciones(document.getElementById('buscarHabitacion').value, this.value)">
+              <option value="">Filtrar estado</option>
+              <option value="Disponible">Disponible</option>
+              <option value="Ocupada">Ocupada</option>
+              <option value="Mantenimiento">Mantenimiento</option>
+            </select>
+          </div>
           <div id="tablaHabitaciones" style="margin-top: 20px;"></div>
         </div>
       </div>
@@ -237,10 +325,26 @@
             <p>Selecciona un tipo de reporte:</p>
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-top: 15px;">
               <button class="btn-primary" onclick="generarReporte('usuarios')">Reporte de Usuarios</button>
-              <button class="btn-primary" onclick="generarReporte('ingresos')">Reporte de Ingresos</button>
               <button class="btn-primary" onclick="generarReporte('ocupacion')">Reporte de Ocupación</button>
+              <button class="btn-primary" onclick="generarReportePDFDiario()">📄 Reporte del Día (PDF)</button>
             </div>
           </div>
+        </div>
+      </div>
+
+      <!-- Sección Tickets -->
+      <div id="tickets" class="content-section">
+        <div class="content-card">
+          <h2>🎫 Tickets de Reserva</h2>
+          <div id="ticketsContent"></div>
+        </div>
+      </div>
+
+      <!-- Sección Caja -->
+      <div id="caja" class="content-section">
+        <div class="content-card">
+          <h2>💰 Gestión de Caja</h2>
+          <div id="cajaContent"></div>
         </div>
       </div>
 
@@ -266,12 +370,11 @@
 
   <!-- Modal genérico -->
   <div id="modal" class="modal">
-    <div class="modal-content">
-      <span class="close-modal" onclick="cerrarModal()">&times;</span>
-      <div id="modalContent"></div>
-    </div>
+    <div id="modalContent"></div>
   </div>
 
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <script type="module" src="dashboard.js"></script>
 </body>
 </html>

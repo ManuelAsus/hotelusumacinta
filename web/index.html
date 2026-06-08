@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hotel Casa Usumacinta - Tu Hogar Lejos de Casa</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <!-- Header/Navegación -->
+    <header class="header">
+        <div class="container">
+            <div class="nav-wrapper">
+                <div class="logo-container">
+                    <img src="../LOGO/LOGO.png" alt="Hotel Casa Usumacinta" class="logo">
+                    <h1 class="hotel-name">Casa Usumacinta</h1>
+                </div>
+                
+                <button class="menu-toggle" id="menuToggle">
+                    <i class="fas fa-bars"></i>
+                </button>
+                
+                <nav class="nav-menu" id="navMenu">
+                    <a href="#inicio" class="nav-link">Inicio</a>
+                    <a href="#habitaciones" class="nav-link">Habitaciones</a>
+                    <a href="#galeria" class="nav-link">Galería</a>
+                    <a href="#servicios" class="nav-link">Servicios</a>
+                    <a href="#contacto" class="nav-link">Contacto</a>
+                    <a href="#contacto" class="nav-link btn-login">Reservar</a>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <!-- Hero Section -->
+    <section class="hero" id="inicio">
+        <div class="hero-image">
+            <img src="../FOTOPORTADAHOTEL/hotelusumacinta.jpg" alt="Hotel Casa Usumacinta">
+            <div class="hero-overlay"></div>
+        </div>
+        <div class="hero-content">
+            <h2>Bienvenido a Casa Usumacinta</h2>
+            <p>Vive la experiencia de un hogar en el corazón de la naturaleza</p>
+            <a href="#contacto" class="btn btn-primary">Hacer una Reserva</a>
+        </div>
+    </section>
+
+    <!-- Acerca de Nosotros -->
+    <section class="about">
+        <div class="container">
+            <h2 class="section-title">Acerca de Nosotros</h2>
+            <div class="about-content">
+                <div class="about-text">
+                    <h3>Tu Hogar Lejos de Casa</h3>
+                    <p>El Hotel Casa Usumacinta es más que un lugar para hospedarse. Es un refugio donde la comodidad se encuentra con la calidez de la atención personalizada. Ubicado en un entorno privilegiado, nuestro hotel ofrece a cada huésped una experiencia única e inolvidable.</p>
+                    <p>Con años de experiencia en la industria hotelera, nos enorgullece brindar servicios de calidad que superan las expectativas de nuestros clientes.</p>
+                    <ul class="features-list">
+                        <li><i class="fas fa-check"></i> Habitaciones cómodas y bien equipadas</li>
+                        <li><i class="fas fa-check"></i> Atención personalizada 24/7</li>
+                        <li><i class="fas fa-check"></i> Entorno natural privilegiado</li>
+                        <li><i class="fas fa-check"></i> Precios competitivos</li>
+                    </ul>
+                </div>
+                <div class="about-image">
+                    <img src="../IMAGENESINTERIORESDELHOTEL/1.webp" alt="Habitación del Hotel">
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Habitaciones -->
+    <section class="habitaciones" id="habitaciones">
+        <div class="container">
+            <h2 class="section-title">Nuestras Habitaciones</h2>
+            <div class="habitaciones-grid">
+                <div class="room-card">
+                    <img src="../IMAGENESINTERIORESDELHOTEL/2.webp" alt="Habitación Simple">
+                    <div class="room-info">
+                        <h3>Habitación Simple</h3>
+                        <p class="room-description">Perfecta para viajeros solitarios que buscan confort y practicidad.</p>
+                        <div class="room-features">
+                            <span><i class="fas fa-wifi"></i> Internet</span>
+                            <span><i class="fas fa-tv"></i> TV Cable</span>
+                            <span><i class="fas fa-snowflake"></i> Aire Acondicionado</span>
+                        </div>
+                        <p class="room-capacity"><i class="fas fa-bed"></i> Para 1 persona</p>
+                    </div>
+                </div>
+
+                <div class="room-card">
+                    <img src="../IMAGENESINTERIORESDELHOTEL/3.webp" alt="Habitación Doble">
+                    <div class="room-info">
+                        <h3>Habitación Doble</h3>
+                        <p class="room-description">Ideal para parejas y pequeños grupos que desean privacidad y comodidad.</p>
+                        <div class="room-features">
+                            <span><i class="fas fa-wifi"></i> Internet</span>
+                            <span><i class="fas fa-tv"></i> TV Cable</span>
+                            <span><i class="fas fa-snowflake"></i> Aire Acondicionado</span>
+                        </div>
+                        <p class="room-capacity"><i class="fas fa-bed"></i> Para 2 personas</p>
+                    </div>
+                </div>
+
+                <div class="room-card">
+                    <img src="../IMAGENESINTERIORESDELHOTEL/4.webp" alt="Suite">
+                    <div class="room-info">
+                        <h3>Suite Premium</h3>
+                        <p class="room-description">Lujo y elegancia para una experiencia inolvidable de hospitalidad.</p>
+                        <div class="room-features">
+                            <span><i class="fas fa-wifi"></i> Internet Premium</span>
+                            <span><i class="fas fa-tv"></i> TV Cable</span>
+                            <span><i class="fas fa-snowflake"></i> Clima Dual</span>
+                        </div>
+                        <p class="room-capacity"><i class="fas fa-bed"></i> Para 2-4 personas</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Galería -->
+    <section class="galeria" id="galeria">
+        <div class="container">
+            <h2 class="section-title">Galería del Hotel</h2>
+            <div class="gallery-grid">
+                <div class="gallery-item">
+                    <img src="../IMAGENESINTERIORESDELHOTEL/5.webp" alt="Galería 1">
+                    <div class="gallery-overlay">
+                        <i class="fas fa-search-plus"></i>
+                    </div>
+                </div>
+                <div class="gallery-item">
+                    <img src="../IMAGENESINTERIORESDELHOTEL/6.jpg" alt="Galería 2">
+                    <div class="gallery-overlay">
+                        <i class="fas fa-search-plus"></i>
+                    </div>
+                </div>
+                <div class="gallery-item">
+                    <img src="../IMAGENESINTERIORESDELHOTEL/7.jpg" alt="Galería 3">
+                    <div class="gallery-overlay">
+                        <i class="fas fa-search-plus"></i>
+                    </div>
+                </div>
+                <div class="gallery-item">
+                    <img src="../IMAGENESINTERIORESDELHOTEL/8.jpeg" alt="Galería 4">
+                    <div class="gallery-overlay">
+                        <i class="fas fa-search-plus"></i>
+                    </div>
+                </div>
+                <div class="gallery-item">
+                    <img src="../IMAGENESINTERIORESDELHOTEL/9.jpeg" alt="Galería 5">
+                    <div class="gallery-overlay">
+                        <i class="fas fa-search-plus"></i>
+                    </div>
+                </div>
+                <div class="gallery-item">
+                    <img src="../IMAGENESINTERIORESDELHOTEL/10.jpg" alt="Galería 6">
+                    <div class="gallery-overlay">
+                        <i class="fas fa-search-plus"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Servicios -->
+    <section class="servicios" id="servicios">
+        <div class="container">
+            <h2 class="section-title">Nuestros Servicios</h2>
+            <div class="servicios-grid">
+                <div class="servicio-card">
+                    <div class="servicio-icon">
+                        <i class="fas fa-wifi"></i>
+                    </div>
+                    <h3>Internet de Alta Velocidad</h3>
+                    <p>Conexión WiFi de alta velocidad disponible en todas las áreas del hotel para mantenerte conectado.</p>
+                </div>
+
+                <div class="servicio-card">
+                    <div class="servicio-icon">
+                        <i class="fas fa-utensils"></i>
+                    </div>
+                    <h3>Desayuno Continental</h3>
+                    <p>Disfruta de un delicioso desayuno preparado con productos frescos cada mañana.</p>
+                </div>
+
+                <div class="servicio-card">
+                    <div class="servicio-icon">
+                        <i class="fas fa-bell-concierge"></i>
+                    </div>
+                    <h3>Recepción 24/7</h3>
+                    <p>Nuestro equipo de recepción está disponible las 24 horas para asistirte en cualquier momento.</p>
+                </div>
+
+                <div class="servicio-card">
+                    <div class="servicio-icon">
+                        <i class="fas fa-car"></i>
+                    </div>
+                    <h3>Servicio de Transporte</h3>
+                    <p>Disponible servicio de transporte para que llegues a tu destino de forma segura y cómoda.</p>
+                </div>
+
+                <div class="servicio-card">
+                    <div class="servicio-icon">
+                        <i class="fas fa-tv"></i>
+                    </div>
+                    <h3>Entretenimiento</h3>
+                    <p>TV Cable y películas para que disfrutes de entretenimiento en la comodidad de tu habitación.</p>
+                </div>
+
+                <div class="servicio-card">
+                    <div class="servicio-icon">
+                        <i class="fas fa-leaf"></i>
+                    </div>
+                    <h3>Entorno Natural</h3>
+                    <p>Rodeado de naturaleza, perfecto para desconectarse y disfrutar de la tranquilidad.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Contacto -->
+    <section class="contacto" id="contacto">
+        <div class="container">
+            <h2 class="section-title">Ponte en Contacto</h2>
+            <div class="contacto-content">
+                <div class="contacto-info">
+                    <div class="info-item">
+                        <i class="fas fa-phone"></i>
+                        <div>
+                            <h3>Teléfono</h3>
+                            <p><a href="tel:9341118398">934 111 8398</a></p>
+                        </div>
+                    </div>
+                    <div class="info-item">
+                        <i class="fas fa-envelope"></i>
+                        <div>
+                            <h3>Email</h3>
+                            <p><a href="mailto:info@casausumacinta.com">info@casausumacinta.com</a></p>
+                        </div>
+                    </div>
+                    <div class="info-item">
+                        <i class="fas fa-map-marker-alt"></i>
+                        <div>
+                            <h3>Ubicación</h3>
+                            <p>Colonia Pedregal de Montecristo, Calle Ámbar, Emiliano Zapata Centro, Mexico, 86992</p>
+                        </div>
+                    </div>
+                </div>
+
+                <form class="contacto-form" action="https://formspree.io/f/xpqeqnlq" method="POST">
+                    <div class="form-group">
+                        <input type="text" name="nombre" placeholder="Tu Nombre" required>
+                    </div>
+                    <div class="form-group">
+                        <input type="email" name="email" placeholder="Tu Email" required>
+                    </div>
+                    <div class="form-group">
+                        <input type="tel" name="telefono" placeholder="Tu Teléfono" required>
+                    </div>
+                    <div class="form-group">
+                        <textarea name="mensaje" placeholder="Tu Mensaje / Consulta de Reserva" rows="5" required></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Enviar Mensaje</button>
+                </form>
+            </div>
+
+            <!-- Mapa -->
+            <div class="mapa-container">
+                <h3 style="text-align: center; color: white; margin-top: 50px; margin-bottom: 20px;">Ubicación del Hotel</h3>
+                <div class="mapa-wrapper">
+                    <iframe src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d475.0211340238442!2d-91.7839109035436!3d17.736671040495363!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x85f3cb00403db339%3A0x47c43a7014bb79d!2sDepartamentos%20Usumacinta!5e0!3m2!1ses-419!2smx!4v1780785600885!5m2!1ses-419!2smx" style="border:0; width: 100%; height: 400px; border-radius: 8px;" allowfullscreen="" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h3>Hotel Casa Usumacinta</h3>
+                    <p>Tu hogar lejos de casa, donde la calidad y la atención personalizada son nuestras prioridades.</p>
+                </div>
+                <div class="footer-section">
+                    <h3>Navegación Rápida</h3>
+                    <ul>
+                        <li><a href="#inicio">Inicio</a></li>
+                        <li><a href="#habitaciones">Habitaciones</a></li>
+                        <li><a href="#galeria">Galería</a></li>
+                        <li><a href="#servicios">Servicios</a></li>
+                    </ul>
+                </div>
+                <div class="footer-section">
+                    <h3>Síguenos</h3>
+                    <div class="social-links">
+                        <a href="https://www.facebook.com/profile.php?id=61589278487113" target="_blank" rel="noopener noreferrer"><i class="fab fa-facebook"></i></a>
+                        <a href="#"><i class="fab fa-instagram"></i></a>
+                        <a href="#"><i class="fab fa-twitter"></i></a>
+                        <a href="#"><i class="fab fa-youtube"></i></a>
+                    </div>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2024 Hotel Casa Usumacinta. Todos los derechos reservados.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>
