@@ -11,6 +11,16 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
+    <div id="sync-loader" style="position:fixed;inset:0;background:rgba(255,255,255,0.96);display:flex;align-items:center;justify-content:center;z-index:99999;flex-direction:column;gap:12px;font-family:Arial,sans-serif;color:#243a2f;padding:20px;">
+        <div style="width:180px;height:8px;background:#ece7d8;border-radius:999px;overflow:hidden;">
+            <div id="sync-progress-bar" style="width:20%;height:100%;background:linear-gradient(90deg,#C1A44D,#966237);transition:width 0.25s ease;"></div>
+        </div>
+        <div style="font-weight:700;letter-spacing:0.04em;">Conectando con la información del hotel...</div>
+        <div id="sync-loader-text" style="font-size:13px;color:#66788a;text-align:center;max-width:300px;">Estamos cargando la versión sincronizada para que veas todo correctamente.</div>
+    </div>
+    <style>
+      @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
     <!-- Header/Navegación -->
     <header class="header">
         <div class="container">
@@ -325,14 +335,25 @@
 
             const LOCAL_HTML_KEY = 'hotelusumacinta_template_html';
             const LOCAL_UPDATED_KEY = 'hotelusumacinta_template_updated';
+            const loader = document.getElementById('sync-loader');
+            const loaderText = document.getElementById('sync-loader-text');
+            const progressBar = document.getElementById('sync-progress-bar');
             function showStatus(s){
                 const statusEl = document.getElementById('firestore-sync-status');
+                if(loaderText) loaderText.textContent = s;
+                if(progressBar){
+                    const pct = s.includes('intento 2') ? 70 : s.includes('intento 1') ? 40 : s.includes('aplicando cambios') ? 90 : 20;
+                    progressBar.style.width = pct + '%';
+                }
                 if(!statusEl) return;
                 statusEl.style.display='block';
                 statusEl.textContent = s;
             }
             function hideStatus(){
                 const statusEl = document.getElementById('firestore-sync-status');
+                if(loader) loader.style.display='none';
+                if(loaderText) loaderText.textContent = 'Listo';
+                if(progressBar) progressBar.style.width = '100%';
                 if(statusEl) statusEl.style.display='none';
             }
 
@@ -422,6 +443,7 @@
                         }
                         showStatus('Encontrado HTML en Firestore — aplicando cambios...');
                         applyHtml(resolvedHtml);
+                        hideStatus();
                         return;
                     }catch(e){
                         lastError = e;
@@ -434,6 +456,7 @@
 
                 console.warn('No se pudo sincronizar desde Firestore después de los reintentos:', lastError);
                 showStatus('Esperando sincronización con Firestore...');
+                setTimeout(() => hideStatus(), 1200);
             }
 
             trySyncFromFirestore();
