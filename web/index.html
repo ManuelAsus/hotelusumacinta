@@ -375,7 +375,7 @@
                     const parts = [];
                     chunksSnap.forEach(chunkDoc => { parts.push(chunkDoc.data().data); });
                     const dataUrl = header + parts.join('');
-                    html = html.split('FIREBASE_IMG::'+id).join(dataUrl);
+                    html = html.split('FIREBASE_IMG::'+id).join(encodeURI(dataUrl));
                 }
                 return html;
             }

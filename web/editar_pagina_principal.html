@@ -603,11 +603,12 @@
         }
 
         // gallery existing
-        const galleryImgs = Array.from(doc.querySelectorAll('.gallery-grid .gallery-item img'));
-        for(let i=0;i<galleryImgs.length;i++){
-          const img = galleryImgs[i];
-          if(state.deletions && state.deletions['gal-'+i]){ img.remove(); }
-          else if(state.replacements['gal-'+i]){ img.setAttribute('src', state.replacements['gal-'+i]); }
+        const galleryItems = Array.from(doc.querySelectorAll('.gallery-grid .gallery-item'));
+        for(let i=0;i<galleryItems.length;i++){
+          const item = galleryItems[i];
+          const img = item.querySelector('img');
+          if(state.deletions && state.deletions['gal-'+i]){ item.remove(); continue; }
+          if(state.replacements['gal-'+i] && img){ img.setAttribute('src', state.replacements['gal-'+i]); }
         }
 
         // add new rooms (inline with data URLs)
@@ -728,12 +729,12 @@
         const serializedFirebase = '<!DOCTYPE html>\n' + firebaseDoc.documentElement.outerHTML;
         try{
           await setDoc(docRef(db,'pages','index'), {templateHtml: serializedFirebase, updatedAt: new Date().toISOString()});
-          saveToLocalStorage(serializedFirebase);
-          state.docText = serializedFirebase;
+          saveToLocalStorage(serializedLocal);
+          state.docText = serializedLocal;
           document.getElementById('status').textContent='Guardado en Firebase y en este navegador.';
         }catch(err){
-          saveToLocalStorage(serializedFirebase);
-          state.docText = serializedFirebase;
+          saveToLocalStorage(serializedLocal);
+          state.docText = serializedLocal;
           console.error('Error al guardar en Firebase; se guardó localmente:', err);
           document.getElementById('status').textContent='Guardado localmente en este navegador.';
         }
