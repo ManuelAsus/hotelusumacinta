@@ -335,8 +335,15 @@ section:nth-child(even) {
 
 .room-description {
     color: #666;
-    margin-bottom: 15px;
+    margin-bottom: 10px;
     font-size: 14px;
+}
+
+.room-price {
+    color: var(--color-primary);
+    font-weight: 700;
+    font-size: 16px;
+    margin-bottom: 15px;
 }
 
 .room-features {

@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, proxy-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <title>Editar Página Principal - Admin</title>
+  <style>
+    :root{
+      --gold:#C1A44D;
+      --gold-dark:#9b7c2d;
+      --cream:#fdf8eb;
+      --ink:#1f2937;
+      --muted:#6b7280;
+      --border:#e5e7eb;
+      --surface:#ffffff;
+      --shadow:0 20px 45px rgba(17,24,39,.08);
+    }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:Inter,Segoe UI,Arial,sans-serif;background:linear-gradient(135deg,#f8f5eb 0%,#f4efe3 100%);color:var(--ink);padding:24px}
+    .container{max-width:1100px;margin:0 auto;background:var(--surface);padding:28px;border-radius:20px;box-shadow:var(--shadow);border:1px solid rgba(193,164,77,.15)}
+    .hero-bar{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:24px;padding:18px 20px;border-radius:16px;background:linear-gradient(90deg,var(--cream),#fff8e3);border:1px solid rgba(193,164,77,.2)}
+    h1{font-size:26px;margin:0 0 6px;color:#2c2411}
+    .small{font-size:14px;color:var(--muted);line-height:1.6;margin:0;max-width:720px}
+    .badge{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;background:var(--gold);color:#fff;font-weight:700;font-size:13px;white-space:nowrap}
+    .row{display:flex;gap:16px;flex-wrap:wrap}
+    .col{flex:1 1 260px}
+    .card{background:#fff;border:1px solid var(--border);border-radius:16px;padding:16px;box-shadow:0 10px 25px rgba(15,23,42,.04)}
+    .section{margin-bottom:18px}
+    h2{font-size:17px;margin:8px 0 12px;color:#4b3b16}
+    label{display:block;font-weight:700;margin-bottom:6px;color:#374151;font-size:14px}
+    input[type=file]{display:block;width:100%;padding:10px;border:1px dashed var(--gold);border-radius:10px;background:#fffdf8}
+    img.preview{width:100%;height:140px;object-fit:cover;border-radius:12px;border:1px solid var(--border);background:#f7f7f7}
+    textarea,input[type=text]{width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--border);font-size:14px;background:#fcfcfd}
+    textarea{min-height:90px;resize:vertical}
+    button{background:linear-gradient(135deg,var(--gold),var(--gold-dark));color:#fff;padding:10px 14px;border:none;border-radius:999px;cursor:pointer;font-weight:700;box-shadow:0 8px 18px rgba(193,164,77,.22);transition:transform .2s ease, box-shadow .2s ease}
+    button:hover{transform:translateY(-1px);box-shadow:0 10px 22px rgba(193,164,77,.28)}
+    button.secondary{background:#fff;border:1px solid var(--border);color:var(--ink);box-shadow:none}
+    button.danger{background:#dc2626;box-shadow:none}
+    .actions{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-top:10px}
+    .status-pill{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;background:#f3f4f6;color:#374151;font-size:14px}
+    .muted{color:var(--muted);font-size:13px}
+    @media (max-width:768px){body{padding:12px}.container{padding:18px}.hero-bar{flex-direction:column}.badge{align-self:flex-start}}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="hero-bar">
+      <div>
+        <h1>Editar Página Principal</h1>
+        <p class="small">Personaliza el contenido visual del sitio, reemplaza imágenes y ajusta textos desde un panel moderno y fácil de usar.</p>
+      </div>
+      <div class="badge">✨ Panel de administración</div>
+    </div>
+
+    <div id="editor">
+      <div class="section card">
+        <h2>Logo</h2>
+        <div class="row">
+          <div class="col">
+            <label>Vista previa</label>
+            <img id="logoPreview" class="preview" src="" alt="logo">
+            <div class="actions"><button id="deleteLogo" class="danger" type="button">Eliminar imagen</button></div>
+          </div>
+          <div class="col">
+            <label>Reemplazar logo (PNG/JPG)</label>
+            <input id="logoInput" type="file" accept="image/*">
+            <p class="muted" style="margin-top:8px">Se recomienda una imagen cuadrada para un mejor resultado visual.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="section card">
+        <h2>Imagen Hero (Portada)</h2>
+        <div class="row">
+          <div class="col">
+            <label>Vista previa</label>
+            <img id="heroPreview" class="preview" src="" alt="hero">
+            <div class="actions"><button id="deleteHero" class="danger" type="button">Eliminar imagen</button></div>
+          </div>
+          <div class="col">
+            <label>Reemplazar imagen</label>
+            <input id="heroInput" type="file" accept="image/*">
+          </div>
+        </div>
+      </div>
+
+      <div class="section card">
+        <h2>Imagen “Acerca de”</h2>
+        <div class="row">
+          <div class="col">
+            <label>Vista previa</label>
+            <img id="aboutPreview" class="preview" src="" alt="about">
+            <div class="actions"><button id="deleteAbout" class="danger" type="button">Eliminar imagen</button></div>
+          </div>
+          <div class="col">
+            <label>Reemplazar imagen</label>
+            <input id="aboutInput" type="file" accept="image/*">
+          </div>
+        </div>
+      </div>
+
+      <div class="section card">
+        <h2>Habitaciones</h2>
+        <div id="rooms"></div>
+        <div class="actions"><button id="addRoomBtn" type="button">➕ Agregar habitación</button></div>
+      </div>
+
+      <div class="section card">
+        <h2>Galería</h2>
+        <div id="gallery"></div>
+        <div class="actions"><button id="addGalleryBtn" type="button">➕ Agregar imagen a galería</button></div>
+      </div>
+
+      <div class="section card">
+        <div class="actions">
+          <button id="generate" type="button">Guardar cambios</button>
+          <span id="status" class="status-pill">Listo para actualizar</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { firebaseConfig } from '../config.js';
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js';
+    import { getFirestore, doc as docRef, setDoc, getDoc } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js';
+
+    const appFirebase = initializeApp(firebaseConfig);
+    const db = getFirestore(appFirebase);
+
+    const CHUNK_SIZE = 200000; // kept for compatibility but not used; images stored as full data URLs
+    const LOCAL_HTML_KEY = 'hotelusumacinta_template_html';
+    const LOCAL_UPDATED_KEY = 'hotelusumacinta_template_updated';
+    const state = {
+      docText: null,
+      parser: new DOMParser(),
+      serializer: new XMLSerializer(),
+      replacements: {}
+    };
+
+    function saveToLocalStorage(html){
+      localStorage.setItem(LOCAL_HTML_KEY, html);
+      localStorage.setItem(LOCAL_UPDATED_KEY, new Date().toISOString());
+    }
+
+    function loadFromLocalStorage(){
+      return localStorage.getItem(LOCAL_HTML_KEY);
+    }
+
+    async function loadIndex(){
+      const res = await fetch('index.html?ts=' + Date.now(), { cache: 'no-store' });
+      const text = await res.text();
+      state.docText = text;
+      const doc = state.parser.parseFromString(text, 'text/html');
+
+      // logo
+      const logoImg = doc.querySelector('img.logo');
+      const logoSrc = logoImg ? logoImg.getAttribute('src') : '';
+      document.getElementById('logoPreview').src = logoSrc;
+
+      // hero
+      const heroImg = doc.querySelector('.hero-image img');
+      const heroSrc = heroImg ? heroImg.getAttribute('src') : '';
+      document.getElementById('heroPreview').src = heroSrc;
+
+      // about image
+      const aboutImg = doc.querySelector('.about-image img');
+      const aboutSrc = aboutImg ? aboutImg.getAttribute('src') : '';
+      document.getElementById('aboutPreview').src = aboutSrc;
+
+      // rooms
+      const roomImgs = Array.from(doc.querySelectorAll('.habitaciones .room-card img'));
+      const roomsContainer = document.getElementById('rooms');
+      roomsContainer.innerHTML = '';
+      roomImgs.forEach((img, i)=>{
+        const src = img.getAttribute('src') || '';
+        const title = (img.closest('.room-card')?.querySelector('h3')?.textContent) || '';
+        const desc = (img.closest('.room-card')?.querySelector('.room-description')?.textContent) || '';
+        const price = (img.closest('.room-card')?.querySelector('.room-price')?.textContent) || '';
+        const wrapper = document.createElement('div');
+        wrapper.className='row section';
+        wrapper.style.marginBottom='8px';
+        wrapper.innerHTML = `\n          <div class="col">\n            <label>Room ${i+1} preview</label>\n            <img id="roomPreview${i}" class="preview" src="${src}">\n            <div style=\"margin-top:8px\"><button data-delete-room="${i}" type=\"button\" style=\"background:#e74c3c\">Eliminar imagen</button></div>\n          </div>\n          <div class="col">\n            <label>Reemplazar imagen</label>\n            <input data-room-index="${i}" class="roomInput" type="file" accept="image/*">\n            <label style=\"margin-top:8px\">Título</label>\n            <input data-room-title-index="${i}" class="roomTitle" type="text" value="${escapeHtml(title)}">\n            <label style=\"margin-top:8px\">Descripción</label>\n            <textarea data-room-desc-index="${i}" class="roomDesc">${escapeHtml(desc)}</textarea>\n          </div>\n        `;
+        roomsContainer.appendChild(wrapper);
+      });
+
+      // gallery
+      const galleryImgs = Array.from(doc.querySelectorAll('.gallery-grid .gallery-item img'));
+      const galleryContainer = document.getElementById('gallery');
+      galleryContainer.innerHTML = '';
+      galleryImgs.forEach((img,i)=>{
+        const src = img.getAttribute('src')||'';
+        const gwrap = document.createElement('div');
+        gwrap.className='row section';
+        gwrap.innerHTML = `\n          <div class="col">\n            <label>Galería ${i+1} preview</label>\n            <img id="galPreview${i}" class="preview" src="${src}">\n            <div style=\"margin-top:8px\"><button data-delete-gal="${i}" type=\"button\" style=\"background:#e74c3c\">Eliminar imagen</button></div>\n          </div>\n          <div class="col">\n            <label>Reemplazar imagen</label>\n            <input data-gal-index="${i}" class="galInput" type="file" accept="image/*">\n          </div>\n        `;
+        galleryContainer.appendChild(gwrap);
+      });
+
+      attachInputs();
+      // initialize indices for new items
+      state.nextNewRoomIndex = roomImgs.length;
+      state.nextNewGalIndex = galleryImgs.length;
+    }
+
+    function renderEditorFromHtml(text){
+      state.docText = text;
+      const doc = state.parser.parseFromString(text, 'text/html');
+      const logoImg = doc.querySelector('img.logo');
+      const logoSrc = logoImg ? logoImg.getAttribute('src') : '';
+      document.getElementById('logoPreview').src = logoSrc;
+      const heroImg = doc.querySelector('.hero-image img');
+      const heroSrc = heroImg ? heroImg.getAttribute('src') : '';
+      document.getElementById('heroPreview').src = heroSrc;
+      const aboutImg = doc.querySelector('.about-image img');
+      const aboutSrc = aboutImg ? aboutImg.getAttribute('src') : '';
+      document.getElementById('aboutPreview').src = aboutSrc;
+      const roomImgs = Array.from(doc.querySelectorAll('.habitaciones .room-card img'));
+      const roomsContainer = document.getElementById('rooms');
+      roomsContainer.innerHTML = '';
+      roomImgs.forEach((img, i)=>{
+        const src = img.getAttribute('src') || '';
+        const title = (img.closest('.room-card')?.querySelector('h3')?.textContent) || '';
+        const desc = (img.closest('.room-card')?.querySelector('.room-description')?.textContent) || '';
+        const price = (img.closest('.room-card')?.querySelector('.room-price')?.textContent) || '';
+        const wrapper = document.createElement('div');
+        wrapper.className='row section';
+        wrapper.style.marginBottom='8px';
+        wrapper.innerHTML = `\n          <div class="col">\n            <label>Room ${i+1} preview</label>\n            <img id="roomPreview${i}" class="preview" src="${src}">\n            <div style="margin-top:8px"><button data-delete-room="${i}" type="button" style="background:#e74c3c">Eliminar imagen</button></div>\n          </div>\n          <div class="col">\n            <label>Reemplazar imagen</label>\n            <input data-room-index="${i}" class="roomInput" type="file" accept="image/*">\n            <label style="margin-top:8px">Título</label>\n            <input data-room-title-index="${i}" class="roomTitle" type="text" value="${escapeHtml(title)}">\n            <label style="margin-top:8px">Precio</label>\n            <input data-room-price-index="${i}" class="roomPrice" type="text" value="${escapeHtml(price)}">\n            <label style="margin-top:8px">Descripción</label>\n            <textarea data-room-desc-index="${i}" class="roomDesc">${escapeHtml(desc)}</textarea>\n          </div>\n        `;
+        roomsContainer.appendChild(wrapper);
+      });
+      const galleryImgs = Array.from(doc.querySelectorAll('.gallery-grid .gallery-item img'));
+      const galleryContainer = document.getElementById('gallery');
+      galleryContainer.innerHTML = '';
+      galleryImgs.forEach((img,i)=>{
+        const src = img.getAttribute('src')||'';
+        const gwrap = document.createElement('div');
+        gwrap.className='row section';
+        gwrap.innerHTML = `\n          <div class="col">\n            <label>Galería ${i+1} preview</label>\n            <img id="galPreview${i}" class="preview" src="${src}">\n            <div style="margin-top:8px"><button data-delete-gal="${i}" type="button" style="background:#e74c3c">Eliminar imagen</button></div>\n          </div>\n          <div class="col">\n            <label>Reemplazar imagen</label>\n            <input data-gal-index="${i}" class="galInput" type="file" accept="image/*">\n          </div>\n        `;
+        galleryContainer.appendChild(gwrap);
+      });
+      attachInputs();
+      state.nextNewRoomIndex = roomImgs.length;
+      state.nextNewGalIndex = galleryImgs.length;
+    }
+
+    loadIndex = async function(){
+      try{
+        const snap = await getDoc(docRef(db,'pages','index'));
+        if(snap.exists() && snap.data().templateHtml){
+          const html = snap.data().templateHtml;
+          saveToLocalStorage(html);
+          renderEditorFromHtml(html);
+          return;
+        }
+      }catch(err){
+        console.warn('No se pudo cargar desde Firestore; se usará lo guardado localmente.', err);
+      }
+
+      const localHtml = loadFromLocalStorage();
+      if(localHtml){
+        renderEditorFromHtml(localHtml);
+        return;
+      }
+
+      try{
+        const res = await fetch('index.html?ts=' + Date.now(), { cache: 'no-store' });
+        const text = await res.text();
+        renderEditorFromHtml(text);
+      }catch(err){
+        console.error('No se pudo cargar el HTML local ni desde Firestore.', err);
+        document.getElementById('status').textContent = 'No se pudo cargar el contenido';
+      }
+    };
+
+    // utility to mark deletions
+    function markDeletion(key, previewId){
+      state.replacements[key] = null;
+      state.deletions = state.deletions || {};
+      state.deletions[key] = true;
+      if(previewId) document.getElementById(previewId).src = '';
+    }
+
+    function escapeHtml(s){
+      return s.replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;');
+    }
+
+    function attachInputs(){
+      document.getElementById('logoInput').addEventListener('change', e=>readFileAsDataURL(e.target.files[0]).then(data=>{
+        document.getElementById('logoPreview').src = data;
+        state.replacements.logo = data;
+        if(state.deletions) state.deletions.logo = false;
+      }));
+      document.getElementById('deleteLogo').addEventListener('click', ()=>markDeletion('logo','logoPreview'));
+
+      document.getElementById('heroInput').addEventListener('change', e=>readFileAsDataURL(e.target.files[0]).then(data=>{
+        document.getElementById('heroPreview').src = data;
+        state.replacements.hero = data;
+        if(state.deletions) state.deletions.hero = false;
+      }));
+      document.getElementById('deleteHero').addEventListener('click', ()=>markDeletion('hero','heroPreview'));
+
+      document.getElementById('aboutInput').addEventListener('change', e=>readFileAsDataURL(e.target.files[0]).then(data=>{
+        document.getElementById('aboutPreview').src = data;
+        state.replacements.about = data;
+        if(state.deletions) state.deletions.about = false;
+      }));
+      document.getElementById('deleteAbout').addEventListener('click', ()=>markDeletion('about','aboutPreview'));
+
+      document.querySelectorAll('.roomInput').forEach(inp=>{
+        inp.addEventListener('change', e=>{
+          const i = e.target.dataset.roomIndex;
+          readFileAsDataURL(e.target.files[0]).then(data=>{
+            document.getElementById('roomPreview'+i).src = data;
+            state.replacements['room-'+i] = data;
+          });
+        });
+      });
+      document.querySelectorAll('[data-delete-room]').forEach(btn=>{
+        btn.addEventListener('click', e=>{
+          const i = btn.getAttribute('data-delete-room');
+          markDeletion('room-'+i, 'roomPreview'+i);
+        });
+      });
+
+      document.querySelectorAll('.roomTitle').forEach(inp=>{
+        inp.addEventListener('input', e=>{
+          const i = e.target.dataset.roomTitleIndex;
+          state.replacements['room-title-'+i] = e.target.value;
+        });
+      });
+
+      document.querySelectorAll('.roomDesc').forEach(inp=>{
+        inp.addEventListener('input', e=>{
+          const i = e.target.dataset.roomDescIndex;
+          state.replacements['room-desc-'+i] = e.target.value;
+        });
+      });
+
+      document.querySelectorAll('.roomPrice').forEach(inp=>{
+        inp.addEventListener('input', e=>{
+          const i = e.target.dataset.roomPriceIndex;
+          state.replacements['room-price-'+i] = e.target.value;
+        });
+      });
+
+      document.querySelectorAll('.galInput').forEach(inp=>{
+        inp.addEventListener('change', e=>{
+          const i = e.target.dataset.galIndex;
+          readFileAsDataURL(e.target.files[0]).then(data=>{
+            document.getElementById('galPreview'+i).src = data;
+            state.replacements['gal-'+i] = data;
+          });
+        });
+      });
+      document.querySelectorAll('[data-delete-gal]').forEach(btn=>{
+        btn.addEventListener('click', e=>{
+          const i = btn.getAttribute('data-delete-gal');
+          markDeletion('gal-'+i, 'galPreview'+i);
+        });
+      });
+      // add new item buttons
+      document.getElementById('addRoomBtn').addEventListener('click', ()=>createRoomEditorForNew(state.nextNewRoomIndex++));
+      document.getElementById('addGalleryBtn').addEventListener('click', ()=>createGalleryEditorForNew(state.nextNewGalIndex++));
+    }
+
+    // helpers to create dynamic editors for new rooms/gallery
+    function createRoomEditorForNew(index, src='', title='', desc='', price=''){
+      state.replacements = state.replacements || {};
+      const roomsContainer = document.getElementById('rooms');
+      const wrapper = document.createElement('div');
+      wrapper.className='row section';
+      wrapper.id = 'newRoomEditor'+index;
+      wrapper.innerHTML = `\n        <div class="col">\n          <label>Room ${index+1} preview</label>\n          <img id="newRoomPreview${index}" class="preview" src="${src}">\n          <div style="margin-top:8px"><button data-delete-new-room="${index}" type="button" style="background:#e74c3c">Eliminar</button></div>\n        </div>\n        <div class="col">\n          <label>Reemplazar imagen</label>\n          <input data-new-room-index="${index}" class="roomInputNew" type="file" accept="image/*">\n          <label style="margin-top:8px">Título</label>\n          <input data-new-room-title-index="${index}" class="roomTitleNew" type="text" value="${escapeHtml(title)}">\n          <label style="margin-top:8px">Precio</label>\n          <input data-new-room-price-index="${index}" class="roomPriceNew" type="text" value="${escapeHtml(price)}">\n          <label style="margin-top:8px">Descripción</label>\n          <textarea data-new-room-desc-index="${index}" class="roomDescNew">${escapeHtml(desc)}</textarea>\n        </div>\n      `;
+      roomsContainer.appendChild(wrapper);
+      // attach handlers
+      wrapper.querySelector('[data-new-room-index]').addEventListener('change', e=>{
+        const file = e.target.files[0];
+        readFileAsDataURL(file).then(data=>{
+          document.getElementById('newRoomPreview'+index).src = data;
+          state.replacements['new-room-'+index] = data;
+        });
+      });
+      wrapper.querySelector('[data-new-room-title-index]').addEventListener('input', e=>{
+        state.replacements['new-room-title-'+index] = e.target.value;
+      });
+      wrapper.querySelector('[data-new-room-price-index]').addEventListener('input', e=>{
+        state.replacements['new-room-price-'+index] = e.target.value;
+      });
+      wrapper.querySelector('[data-new-room-desc-index]').addEventListener('input', e=>{
+        state.replacements['new-room-desc-'+index] = e.target.value;
+      });
+      wrapper.querySelector('[data-delete-new-room]').addEventListener('click', ()=>{
+        delete state.replacements['new-room-'+index];
+        delete state.replacements['new-room-title-'+index];
+        delete state.replacements['new-room-price-'+index];
+        delete state.replacements['new-room-desc-'+index];
+        const el = document.getElementById('newRoomEditor'+index); if(el) el.remove();
+      });
+    }
+
+    function createGalleryEditorForNew(index, src=''){
+      const galleryContainer = document.getElementById('gallery');
+      const wrapper = document.createElement('div');
+      wrapper.className='row section';
+      wrapper.id = 'newGalEditor'+index;
+      wrapper.innerHTML = `\n        <div class="col">\n          <label>Galería ${index+1} preview</label>\n          <img id="newGalPreview${index}" class="preview" src="${src}">\n          <div style="margin-top:8px"><button data-delete-new-gal="${index}" type="button" style="background:#e74c3c">Eliminar</button></div>\n        </div>\n        <div class="col">\n          <label>Reemplazar imagen</label>\n          <input data-new-gal-index="${index}" class="galInputNew" type="file" accept="image/*">\n        </div>\n      `;
+      galleryContainer.appendChild(wrapper);
+      wrapper.querySelector('[data-new-gal-index]').addEventListener('change', e=>{
+        const file = e.target.files[0];
+        readFileAsDataURL(file).then(data=>{
+          document.getElementById('newGalPreview'+index).src = data;
+          state.replacements['new-gal-'+index] = data;
+        });
+      });
+      wrapper.querySelector('[data-delete-new-gal]').addEventListener('click', ()=>{
+        delete state.replacements['new-gal-'+index];
+        const el = document.getElementById('newGalEditor'+index); if(el) el.remove();
+      });
+    }
+
+    function readFileAsDataURL(file){
+      return new Promise((res,rej)=>{
+        if(!file){res('');return}
+        const fr=new FileReader();
+        fr.onload = ()=>res(fr.result);
+        fr.onerror = ()=>rej(fr.error);
+        fr.readAsDataURL(file);
+      });
+    }
+
+    document.getElementById('generate').addEventListener('click', async ()=>{
+      try{
+        if(!state.docText){document.getElementById('status').textContent='Documento no cargado';return}
+        document.getElementById('status').textContent='Preparando HTML...';
+        const doc = state.parser.parseFromString(state.docText,'text/html');
+
+        // apply replacements and deletions but prefer data-URLs so local file contains actual images
+        // top-level
+        if(state.deletions && state.deletions.logo){ const l = doc.querySelector('img.logo'); if(l) l.remove(); }
+        else if(state.replacements.logo){ const logo = doc.querySelector('img.logo'); if(logo) logo.setAttribute('src', state.replacements.logo); }
+
+        if(state.deletions && state.deletions.hero){ const h = doc.querySelector('.hero-image img'); if(h) h.remove(); }
+        else if(state.replacements.hero){ const hero = doc.querySelector('.hero-image img'); if(hero) hero.setAttribute('src', state.replacements.hero); }
+
+        if(state.deletions && state.deletions.about){ const a = doc.querySelector('.about-image img'); if(a) a.remove(); }
+        else if(state.replacements.about){ const about = doc.querySelector('.about-image img'); if(about) about.setAttribute('src', state.replacements.about); }
+
+        // rooms existing
+        const roomCards = Array.from(doc.querySelectorAll('.habitaciones .room-card'));
+        for(let i=0;i<roomCards.length;i++){
+          const card = roomCards[i]; const img = card.querySelector('img');
+          if(state.deletions && state.deletions['room-'+i]){ if(img) img.remove(); }
+          else if(state.replacements['room-'+i] && img){ img.setAttribute('src', state.replacements['room-'+i]); }
+          const titleEl = card.querySelector('h3'); if(state.replacements['room-title-'+i] && titleEl) titleEl.textContent = state.replacements['room-title-'+i];
+          const descEl = card.querySelector('.room-description'); if(state.replacements['room-desc-'+i] && descEl) descEl.textContent = state.replacements['room-desc-'+i];
+          const priceText = state.replacements['room-price-'+i];
+          if(priceText){
+            let priceEl = card.querySelector('.room-price');
+            if(!priceEl){
+              priceEl = doc.createElement('p');
+              priceEl.className = 'room-price';
+              const roomInfo = card.querySelector('.room-info');
+              if(roomInfo) roomInfo.insertBefore(priceEl, roomInfo.querySelector('.room-features'));
+            }
+            priceEl.textContent = priceText;
+          }
+        }
+
+        // gallery existing
+        const galleryImgs = Array.from(doc.querySelectorAll('.gallery-grid .gallery-item img'));
+        for(let i=0;i<galleryImgs.length;i++){
+          const img = galleryImgs[i];
+          if(state.deletions && state.deletions['gal-'+i]){ img.remove(); }
+          else if(state.replacements['gal-'+i]){ img.setAttribute('src', state.replacements['gal-'+i]); }
+        }
+
+        // add new rooms (inline with data URLs)
+        if(state.replacements){
+          const habitGrid = doc.querySelector('.habitaciones .habitaciones-grid');
+          if(habitGrid){
+            Object.keys(state.replacements).forEach(k=>{
+              if(k.startsWith('new-room-')){
+                const idx = k.split('new-room-')[1];
+                const src = state.replacements[k];
+                const title = state.replacements['new-room-title-'+idx] || 'Nueva Habitación';
+                const desc = state.replacements['new-room-desc-'+idx] || '';
+                const price = state.replacements['new-room-price-'+idx] || 'Precio a consultar';
+                const card = doc.createElement('div'); card.className='room-card';
+                const img = doc.createElement('img'); if(src) img.setAttribute('src', src);
+                card.appendChild(img);
+                const info = doc.createElement('div'); info.className='room-info';
+                info.innerHTML = `<h3>${escapeHtml(title)}</h3><p class="room-description">${escapeHtml(desc)}</p><p class="room-price">${escapeHtml(price)}</p><div class="room-features"> <span><i class="fas fa-wifi"></i> Internet</span> <span><i class="fas fa-tv"></i> TV Cable</span> <span><i class="fas fa-snowflake"></i> Aire Acondicionado</span></div><p class="room-capacity"><i class="fas fa-bed"></i> Para 2 personas</p>`;
+                card.appendChild(info);
+                habitGrid.appendChild(card);
+              }
+            });
+          }
+
+          // add any new gallery images inline
+          const galGrid = doc.querySelector('.gallery-grid');
+          if(galGrid){
+            Object.keys(state.replacements).forEach(k=>{
+              if(k.startsWith('new-gal-')){
+                const src = state.replacements[k];
+                const item = doc.createElement('div'); item.className='gallery-item';
+                const img = doc.createElement('img'); if(src) img.setAttribute('src', src);
+                item.appendChild(img);
+                const overlay = doc.createElement('div'); overlay.className='gallery-overlay'; overlay.innerHTML = '<i class="fas fa-search-plus"></i>';
+                item.appendChild(overlay);
+                galGrid.appendChild(item);
+              }
+            });
+          }
+        }
+
+        const serializedLocal = '<!DOCTYPE html>\n' + doc.documentElement.outerHTML;
+        document.getElementById('status').textContent='Guardando en Firebase...';
+
+        // backup to Firebase: store images chunked and store pages/index with FIREBASE_IMG placeholders
+        // Store full data URL as single string in Firestore (images/{id}.dataUrl)
+        async function storeImageDataURL(dataUrl){
+          if(!dataUrl) return null;
+          const id = 'img_'+Date.now()+'_'+Math.random().toString(36).slice(2,9);
+          await setDoc(docRef(db,'images',id), {dataUrl: dataUrl, createdAt: new Date().toISOString()});
+          return id;
+        }
+
+        // prepare a firebase-friendly copy
+        const firebaseDoc = state.parser.parseFromString(serializedLocal,'text/html');
+
+        // upload images and keep data URLs inline in the saved HTML
+        if(firebaseDoc.querySelector('img.logo') && state.replacements.logo){ await storeImageDataURL(state.replacements.logo); firebaseDoc.querySelector('img.logo').setAttribute('src', state.replacements.logo); }
+        if(firebaseDoc.querySelector('.hero-image img') && state.replacements.hero){ await storeImageDataURL(state.replacements.hero); firebaseDoc.querySelector('.hero-image img').setAttribute('src', state.replacements.hero); }
+        if(firebaseDoc.querySelector('.about-image img') && state.replacements.about){ await storeImageDataURL(state.replacements.about); firebaseDoc.querySelector('.about-image img').setAttribute('src', state.replacements.about); }
+
+        // existing rooms
+        const firebaseRoomCards = Array.from(firebaseDoc.querySelectorAll('.habitaciones .room-card'));
+        for(let i=0;i<firebaseRoomCards.length;i++){
+          const img = firebaseRoomCards[i].querySelector('img');
+          const key = 'room-'+i;
+          if(state.replacements[key] && img){ await storeImageDataURL(state.replacements[key]); img.setAttribute('src', state.replacements[key]); }
+        }
+
+        // existing gallery
+        const firebaseGalleryImgs = Array.from(firebaseDoc.querySelectorAll('.gallery-grid .gallery-item img'));
+        for(let i=0;i<firebaseGalleryImgs.length;i++){
+          const key = 'gal-'+i;
+          if(state.replacements[key]){ await storeImageDataURL(state.replacements[key]); firebaseGalleryImgs[i].setAttribute('src', state.replacements[key]); }
+        }
+
+        // new rooms
+        if(state.replacements){
+          for(const k of Object.keys(state.replacements)){
+              if(k.startsWith('new-room-')){
+              const idx = k.split('new-room-')[1]; const key = 'new-room-'+idx;
+              const src = state.replacements[key]; if(src){ await storeImageDataURL(src); const imgs = Array.from(firebaseDoc.querySelectorAll('img')); imgs.forEach(img=>{ if(img.getAttribute('src')===src) img.setAttribute('src', src); }); }
+            }
+          }
+        }
+
+        // new gallery
+        if(state.replacements){
+          for(const k of Object.keys(state.replacements)){
+              if(k.startsWith('new-gal-')){
+              const src = state.replacements[k]; if(src){ await storeImageDataURL(src); const imgs = Array.from(firebaseDoc.querySelectorAll('img')); imgs.forEach(img=>{ if(img.getAttribute('src')===src) img.setAttribute('src', src); }); }
+            }
+          }
+        }
+
+        const serializedFirebase = '<!DOCTYPE html>\n' + firebaseDoc.documentElement.outerHTML;
+        try{
+          await setDoc(docRef(db,'pages','index'), {templateHtml: serializedFirebase, updatedAt: new Date().toISOString()});
+          saveToLocalStorage(serializedFirebase);
+          state.docText = serializedFirebase;
+          document.getElementById('status').textContent='Guardado en Firebase y en este navegador.';
+        }catch(err){
+          saveToLocalStorage(serializedFirebase);
+          state.docText = serializedFirebase;
+          console.error('Error al guardar en Firebase; se guardó localmente:', err);
+          document.getElementById('status').textContent='Guardado localmente en este navegador.';
+        }
+      }catch(err){
+        console.error('Error al preparar o guardar el contenido:', err);
+        document.getElementById('status').textContent='Error al guardar (ver consola).';
+      }
+    });
+
+    loadIndex().catch(err=>{
+      console.error(err);document.getElementById('status').textContent='No se pudo cargar index.html';
+    });
+  </script>
+</body>
+</html>

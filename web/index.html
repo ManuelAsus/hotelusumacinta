@@ -3,6 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, proxy-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>Hotel Casa Usumacinta - Tu Hogar Lejos de Casa</title>
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -79,6 +82,7 @@
                     <div class="room-info">
                         <h3>Habitación Simple</h3>
                         <p class="room-description">Perfecta para viajeros solitarios que buscan confort y practicidad.</p>
+                        <p class="room-price">Desde $1,200 MXN por noche</p>
                         <div class="room-features">
                             <span><i class="fas fa-wifi"></i> Internet</span>
                             <span><i class="fas fa-tv"></i> TV Cable</span>
@@ -93,6 +97,7 @@
                     <div class="room-info">
                         <h3>Habitación Doble</h3>
                         <p class="room-description">Ideal para parejas y pequeños grupos que desean privacidad y comodidad.</p>
+                        <p class="room-price">Desde $1,800 MXN por noche</p>
                         <div class="room-features">
                             <span><i class="fas fa-wifi"></i> Internet</span>
                             <span><i class="fas fa-tv"></i> TV Cable</span>
@@ -107,6 +112,7 @@
                     <div class="room-info">
                         <h3>Suite Premium</h3>
                         <p class="room-description">Lujo y elegancia para una experiencia inolvidable de hospitalidad.</p>
+                        <p class="room-price">Desde $2,800 MXN por noche</p>
                         <div class="room-features">
                             <span><i class="fas fa-wifi"></i> Internet Premium</span>
                             <span><i class="fas fa-tv"></i> TV Cable</span>
@@ -310,5 +316,79 @@
     </footer>
 
     <script src="script.js"></script>
+        <div id="firestore-sync-status" style="position:fixed;right:12px;bottom:12px;background:rgba(0,0,0,0.7);color:#fff;padding:8px 10px;border-radius:6px;font-size:13px;z-index:9999;display:none"></div>
+        <script type="module">
+            import { firebaseConfig } from '../config.js';
+            import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js';
+            import { getFirestore, doc, getDoc } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js';
+
+            const LOCAL_HTML_KEY = 'hotelusumacinta_template_html';
+            const LOCAL_UPDATED_KEY = 'hotelusumacinta_template_updated';
+            function showStatus(s){
+                const statusEl = document.getElementById('firestore-sync-status');
+                if(!statusEl) return;
+                statusEl.style.display='block';
+                statusEl.textContent = s;
+            }
+            function hideStatus(){
+                const statusEl = document.getElementById('firestore-sync-status');
+                if(statusEl) statusEl.style.display='none';
+            }
+
+            function applyHtml(html){
+                if(!html) return false;
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+                document.title = doc.title || document.title;
+                document.body.innerHTML = doc.body.innerHTML;
+                document.body.querySelectorAll('script').forEach(script => script.remove());
+
+                let statusEl = document.getElementById('firestore-sync-status');
+                if(!statusEl){
+                    statusEl = document.createElement('div');
+                    statusEl.id = 'firestore-sync-status';
+                    statusEl.style.cssText = 'position:fixed;right:12px;bottom:12px;background:rgba(0,0,0,0.7);color:#fff;padding:8px 10px;border-radius:6px;font-size:13px;z-index:9999;display:none';
+                    document.body.appendChild(statusEl);
+                }
+
+                delete window.__hotelPageScriptInitialized;
+                const script = document.createElement('script');
+                script.src = 'script.js';
+                script.setAttribute('data-site-script', 'true');
+                document.body.appendChild(script);
+                return true;
+            }
+
+            async function trySyncFromFirestore(){
+                try{
+                    showStatus('Comprobando Firestore para actualizaciones...');
+                    const app = initializeApp(firebaseConfig);
+                    const db = getFirestore(app);
+                    const snap = await getDoc(doc(db,'pages','index'));
+                    if(!snap.exists()){ throw new Error('pages/index no existe'); }
+                    const data = snap.data();
+                    if(!data || !data.templateHtml){ throw new Error('pages/index sin templateHtml'); }
+                    const updatedAt = data.updatedAt || '';
+                    localStorage.setItem(LOCAL_HTML_KEY, data.templateHtml);
+                    localStorage.setItem(LOCAL_UPDATED_KEY, updatedAt || new Date().toISOString());
+                    showStatus('Encontrado HTML en Firestore — aplicando cambios...');
+                    applyHtml(data.templateHtml);
+                    return;
+                }catch(e){
+                    console.warn('No se pudo sincronizar desde Firestore:', e);
+                }
+
+                const localHtml = localStorage.getItem(LOCAL_HTML_KEY);
+                if(localHtml){
+                    showStatus('Aplicando versión guardada localmente en este navegador.');
+                    applyHtml(localHtml);
+                    return;
+                }
+
+                showStatus('Error sincronizando desde Firestore (ver consola).');
+            }
+
+            trySyncFromFirestore();
+        </script>
 </body>
 </html>

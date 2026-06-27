@@ -1,3 +1,4 @@
+(function () {
 // Toggle Mobile Menu
 const menuToggle = document.getElementById('menuToggle');
 const navMenu = document.getElementById('navMenu');
@@ -208,3 +209,4 @@ document.querySelectorAll('.room-card, .servicio-card').forEach(card => {
 });
 
 console.log('Página web del Hotel Casa Usumacinta cargada correctamente ✓');
+})();
