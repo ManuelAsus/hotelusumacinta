@@ -126,12 +126,12 @@
   <script type="module">
     import { firebaseConfig } from '../config.js';
     import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js';
-    import { getFirestore, doc as docRef, setDoc, getDoc } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js';
+    import { getFirestore, doc as docRef, setDoc, getDoc, collection, getDocs, orderBy, query } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js';
 
     const appFirebase = initializeApp(firebaseConfig);
     const db = getFirestore(appFirebase);
 
-    const CHUNK_SIZE = 200000; // kept for compatibility but not used; images stored as full data URLs
+    const CHUNK_SIZE = 200000; // chunk size used for storing large Base64 image payloads in Firestore
     const LOCAL_HTML_KEY = 'hotelusumacinta_template_html';
     const LOCAL_UPDATED_KEY = 'hotelusumacinta_template_updated';
     const state = {
@@ -148,6 +148,24 @@
 
     function loadFromLocalStorage(){
       return localStorage.getItem(LOCAL_HTML_KEY);
+    }
+
+    async function resolveFirebaseImagePlaceholders(html){
+      const regex = /FIREBASE_IMG::([a-zA-Z0-9_\-]+)/g;
+      const ids = new Set();
+      let match;
+      while((match = regex.exec(html)) !== null){ ids.add(match[1]); }
+      if(!ids.size) return html;
+      for(const id of ids){
+        const metaSnap = await getDoc(docRef(db,'images',id));
+        if(!metaSnap.exists()) continue;
+        const header = (metaSnap.data().header || 'data:image/jpeg;base64,');
+        const chunksSnap = await getDocs(query(collection(docRef(db,'images',id),'chunks'), orderBy('index')));
+        const parts = [];
+        chunksSnap.forEach(chunkDoc => { const data = chunkDoc.data().data; if(typeof data === 'string') parts.push(data); });
+        html = html.split('FIREBASE_IMG::'+id).join(header + parts.join(''));
+      }
+      return html;
     }
 
     async function loadIndex(){
@@ -254,7 +272,8 @@
       try{
         const snap = await getDoc(docRef(db,'pages','index'));
         if(snap.exists() && snap.data().templateHtml){
-          const html = snap.data().templateHtml;
+          const rawHtml = snap.data().templateHtml;
+          const html = await resolveFirebaseImagePlaceholders(rawHtml);
           saveToLocalStorage(html);
           renderEditorFromHtml(html);
           return;
@@ -609,43 +628,49 @@
         document.getElementById('status').textContent='Guardando en Firebase...';
 
         // backup to Firebase: store images chunked and store pages/index with FIREBASE_IMG placeholders
-        // Store full data URL as single string in Firestore (images/{id}.dataUrl)
         async function storeImageDataURL(dataUrl){
           if(!dataUrl) return null;
+          const [header, base64] = dataUrl.split(',', 2);
           const id = 'img_'+Date.now()+'_'+Math.random().toString(36).slice(2,9);
-          await setDoc(docRef(db,'images',id), {dataUrl: dataUrl, createdAt: new Date().toISOString()});
+          await setDoc(docRef(db,'images',id), {header: header + ',', createdAt: new Date().toISOString()});
+          const chunkCount = Math.ceil(base64.length / CHUNK_SIZE);
+          for(let index = 0; index < chunkCount; index++){
+            const chunk = base64.slice(index * CHUNK_SIZE, (index + 1) * CHUNK_SIZE);
+            await setDoc(docRef(db,'images',id,'chunks',String(index)), {index, data: chunk});
+          }
           return id;
         }
 
         // prepare a firebase-friendly copy
         const firebaseDoc = state.parser.parseFromString(serializedLocal,'text/html');
 
-        // upload images and keep data URLs inline in the saved HTML
-        if(firebaseDoc.querySelector('img.logo') && state.replacements.logo){ await storeImageDataURL(state.replacements.logo); firebaseDoc.querySelector('img.logo').setAttribute('src', state.replacements.logo); }
-        if(firebaseDoc.querySelector('.hero-image img') && state.replacements.hero){ await storeImageDataURL(state.replacements.hero); firebaseDoc.querySelector('.hero-image img').setAttribute('src', state.replacements.hero); }
-        if(firebaseDoc.querySelector('.about-image img') && state.replacements.about){ await storeImageDataURL(state.replacements.about); firebaseDoc.querySelector('.about-image img').setAttribute('src', state.replacements.about); }
+        // upload images and replace the src in the stored HTML with placeholders
+        if(firebaseDoc.querySelector('img.logo') && state.replacements.logo){ const logoId = await storeImageDataURL(state.replacements.logo); if(logoId) firebaseDoc.querySelector('img.logo').setAttribute('src', 'FIREBASE_IMG::'+logoId); }
+        if(firebaseDoc.querySelector('.hero-image img') && state.replacements.hero){ const heroId = await storeImageDataURL(state.replacements.hero); if(heroId) firebaseDoc.querySelector('.hero-image img').setAttribute('src', 'FIREBASE_IMG::'+heroId); }
+        if(firebaseDoc.querySelector('.about-image img') && state.replacements.about){ const aboutId = await storeImageDataURL(state.replacements.about); if(aboutId) firebaseDoc.querySelector('.about-image img').setAttribute('src', 'FIREBASE_IMG::'+aboutId); }
 
         // existing rooms
         const firebaseRoomCards = Array.from(firebaseDoc.querySelectorAll('.habitaciones .room-card'));
         for(let i=0;i<firebaseRoomCards.length;i++){
           const img = firebaseRoomCards[i].querySelector('img');
           const key = 'room-'+i;
-          if(state.replacements[key] && img){ await storeImageDataURL(state.replacements[key]); img.setAttribute('src', state.replacements[key]); }
+          if(state.replacements[key] && img){ const id = await storeImageDataURL(state.replacements[key]); if(id) img.setAttribute('src', 'FIREBASE_IMG::'+id); }
         }
 
         // existing gallery
         const firebaseGalleryImgs = Array.from(firebaseDoc.querySelectorAll('.gallery-grid .gallery-item img'));
         for(let i=0;i<firebaseGalleryImgs.length;i++){
           const key = 'gal-'+i;
-          if(state.replacements[key]){ await storeImageDataURL(state.replacements[key]); firebaseGalleryImgs[i].setAttribute('src', state.replacements[key]); }
+          if(state.replacements[key]){ const id = await storeImageDataURL(state.replacements[key]); if(id) firebaseGalleryImgs[i].setAttribute('src', 'FIREBASE_IMG::'+id); }
         }
 
         // new rooms
         if(state.replacements){
           for(const k of Object.keys(state.replacements)){
-              if(/^new-room-\d+$/.test(k)){
+            if(/^new-room-\d+$/.test(k)){
               const idx = k.split('new-room-')[1]; const key = 'new-room-'+idx;
-              const src = state.replacements[key]; if(src){ await storeImageDataURL(src); const imgs = Array.from(firebaseDoc.querySelectorAll('img')); imgs.forEach(img=>{ if(img.getAttribute('src')===src) img.setAttribute('src', src); }); }
+              const src = state.replacements[key];
+              if(src){ const id = await storeImageDataURL(src); const imgs = Array.from(firebaseDoc.querySelectorAll('img')); imgs.forEach(img=>{ if(img.getAttribute('src')===src) img.setAttribute('src', 'FIREBASE_IMG::'+id); }); }
             }
           }
         }
@@ -653,8 +678,9 @@
         // new gallery
         if(state.replacements){
           for(const k of Object.keys(state.replacements)){
-              if(k.startsWith('new-gal-')){
-              const src = state.replacements[k]; if(src){ await storeImageDataURL(src); const imgs = Array.from(firebaseDoc.querySelectorAll('img')); imgs.forEach(img=>{ if(img.getAttribute('src')===src) img.setAttribute('src', src); }); }
+            if(k.startsWith('new-gal-')){
+              const src = state.replacements[k];
+              if(src){ const id = await storeImageDataURL(src); const imgs = Array.from(firebaseDoc.querySelectorAll('img')); imgs.forEach(img=>{ if(img.getAttribute('src')===src) img.setAttribute('src', 'FIREBASE_IMG::'+id); }); }
             }
           }
         }

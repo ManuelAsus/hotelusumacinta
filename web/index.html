@@ -320,7 +320,7 @@
         <script type="module">
             import { firebaseConfig } from '../config.js';
             import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js';
-            import { getFirestore, doc, getDoc } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js';
+            import { getFirestore, doc, getDoc, collection, getDocs, orderBy, query } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js';
 
             const LOCAL_HTML_KEY = 'hotelusumacinta_template_html';
             const LOCAL_UPDATED_KEY = 'hotelusumacinta_template_updated';
@@ -359,6 +359,27 @@
                 return true;
             }
 
+            async function resolveFirebaseImagePlaceholders(html){
+                const regex = /FIREBASE_IMG::([a-zA-Z0-9_\-]+)/g;
+                const ids = new Set();
+                let match;
+                while((match = regex.exec(html)) !== null){ ids.add(match[1]); }
+                if(!ids.size) return html;
+                const app = initializeApp(firebaseConfig);
+                const db = getFirestore(app);
+                for(const id of ids){
+                    const metaSnap = await getDoc(doc(db,'images',id));
+                    if(!metaSnap.exists()) continue;
+                    const header = (metaSnap.data().header || 'data:image/jpeg;base64,');
+                    const chunksSnap = await getDocs(query(collection(doc(db,'images',id),'chunks'), orderBy('index')));
+                    const parts = [];
+                    chunksSnap.forEach(chunkDoc => { parts.push(chunkDoc.data().data); });
+                    const dataUrl = header + parts.join('');
+                    html = html.split('FIREBASE_IMG::'+id).join(dataUrl);
+                }
+                return html;
+            }
+
             async function trySyncFromFirestore(){
                 try{
                     showStatus('Comprobando Firestore para actualizaciones...');
@@ -366,13 +387,14 @@
                     const db = getFirestore(app);
                     const snap = await getDoc(doc(db,'pages','index'));
                     if(!snap.exists()){ throw new Error('pages/index no existe'); }
-                    const data = snap.data();
+                            const data = snap.data();
                     if(!data || !data.templateHtml){ throw new Error('pages/index sin templateHtml'); }
                     const updatedAt = data.updatedAt || '';
-                    localStorage.setItem(LOCAL_HTML_KEY, data.templateHtml);
+                    const resolvedHtml = await resolveFirebaseImagePlaceholders(data.templateHtml);
+                    localStorage.setItem(LOCAL_HTML_KEY, resolvedHtml);
                     localStorage.setItem(LOCAL_UPDATED_KEY, updatedAt || new Date().toISOString());
                     showStatus('Encontrado HTML en Firestore — aplicando cambios...');
-                    applyHtml(data.templateHtml);
+                    applyHtml(resolvedHtml);
                     return;
                 }catch(e){
                     console.warn('No se pudo sincronizar desde Firestore:', e);
