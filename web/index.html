@@ -402,32 +402,24 @@
                         showStatus(`Sincronizando Firestore (intento ${attempt}/3)...`);
                         const app = initializeApp(firebaseConfig);
                         const db = getFirestore(app);
-
-                        const syncPromise = (async () => {
-                            const snap = await getDoc(doc(db,'pages','index'));
-                            if(!snap.exists()){ throw new Error('pages/index no existe'); }
-                            const data = snap.data();
-                            if(!data || !data.templateHtml){ throw new Error('pages/index sin templateHtml'); }
-                            const updatedAt = data.updatedAt || '';
-                            const resolvedHtml = await resolveFirebaseImagePlaceholders(data.templateHtml);
-                            try{
-                                const MAX_LOCAL_SAVE = 1200000;
-                                if(resolvedHtml && resolvedHtml.length <= MAX_LOCAL_SAVE){
-                                    localStorage.setItem(LOCAL_HTML_KEY, resolvedHtml);
-                                }else{
-                                    console.warn('Resolved HTML demasiado grande para localStorage; se guarda solo el template con placeholders');
-                                    try{ localStorage.setItem(LOCAL_HTML_KEY + '_PLACEHOLDER', data.templateHtml); }catch(e){ console.warn('No se pudo guardar el template placeholder en localStorage', e); }
-                                }
-                                try{ localStorage.setItem(LOCAL_UPDATED_KEY, updatedAt || new Date().toISOString()); }catch(e){ console.warn('No se pudo guardar la marca de tiempo en localStorage', e); }
-                            }catch(e){
-                                console.warn('No se pudo persistir en localStorage', e);
+                        const snap = await getDoc(doc(db,'pages','index'));
+                        if(!snap.exists()){ throw new Error('pages/index no existe'); }
+                        const data = snap.data();
+                        if(!data || !data.templateHtml){ throw new Error('pages/index sin templateHtml'); }
+                        const updatedAt = data.updatedAt || '';
+                        const resolvedHtml = await resolveFirebaseImagePlaceholders(data.templateHtml);
+                        try{
+                            const MAX_LOCAL_SAVE = 1200000;
+                            if(resolvedHtml && resolvedHtml.length <= MAX_LOCAL_SAVE){
+                                localStorage.setItem(LOCAL_HTML_KEY, resolvedHtml);
+                            }else{
+                                console.warn('Resolved HTML demasiado grande para localStorage; se guarda solo el template con placeholders');
+                                try{ localStorage.setItem(LOCAL_HTML_KEY + '_PLACEHOLDER', data.templateHtml); }catch(e){ console.warn('No se pudo guardar el template placeholder en localStorage', e); }
                             }
-                            return resolvedHtml;
-                        })();
-
-                        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout sincronizando Firestore')), 3000));
-                        const resolvedHtml = await Promise.race([syncPromise, timeoutPromise]);
-
+                            try{ localStorage.setItem(LOCAL_UPDATED_KEY, updatedAt || new Date().toISOString()); }catch(e){ console.warn('No se pudo guardar la marca de tiempo en localStorage', e); }
+                        }catch(e){
+                            console.warn('No se pudo persistir en localStorage', e);
+                        }
                         showStatus('Encontrado HTML en Firestore — aplicando cambios...');
                         applyHtml(resolvedHtml);
                         return;
@@ -435,7 +427,7 @@
                         lastError = e;
                         console.warn(`Intento ${attempt} de sincronización fallido:`, e);
                         if(attempt < 3){
-                            await new Promise(resolve => setTimeout(resolve, 1500));
+                            await new Promise(resolve => setTimeout(resolve, 1200));
                         }
                     }
                 }
