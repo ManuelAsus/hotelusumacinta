@@ -177,13 +177,15 @@
       roomsContainer.innerHTML = '';
       roomImgs.forEach((img, i)=>{
         const src = img.getAttribute('src') || '';
-        const title = (img.closest('.room-card')?.querySelector('h3')?.textContent) || '';
-        const desc = (img.closest('.room-card')?.querySelector('.room-description')?.textContent) || '';
-        const price = (img.closest('.room-card')?.querySelector('.room-price')?.textContent) || '';
+        const title = (img.closest('.room-card')?.querySelector('h3')?.textContent || '').trim();
+        const desc = (img.closest('.room-card')?.querySelector('.room-description')?.textContent || '').trim();
+        const price = (img.closest('.room-card')?.querySelector('.room-price')?.textContent || '').trim();
+        const capacity = (img.closest('.room-card')?.querySelector('.room-capacity')?.textContent || '').trim();
+        const features = Array.from(img.closest('.room-card')?.querySelectorAll('.room-features span') || []).map(span => span.textContent.trim()).filter(Boolean).join('\n');
         const wrapper = document.createElement('div');
         wrapper.className='row section';
         wrapper.style.marginBottom='8px';
-        wrapper.innerHTML = `\n          <div class="col">\n            <label>Room ${i+1} preview</label>\n            <img id="roomPreview${i}" class="preview" src="${src}">\n            <div style=\"margin-top:8px\"><button data-delete-room="${i}" type=\"button\" style=\"background:#e74c3c\">Eliminar imagen</button></div>\n          </div>\n          <div class="col">\n            <label>Reemplazar imagen</label>\n            <input data-room-index="${i}" class="roomInput" type="file" accept="image/*">\n            <label style=\"margin-top:8px\">Título</label>\n            <input data-room-title-index="${i}" class="roomTitle" type="text" value="${escapeHtml(title)}">\n            <label style=\"margin-top:8px\">Descripción</label>\n            <textarea data-room-desc-index="${i}" class="roomDesc">${escapeHtml(desc)}</textarea>\n          </div>\n        `;
+        wrapper.innerHTML = `\n          <div class="col">\n            <label>Room ${i+1} preview</label>\n            <img id="roomPreview${i}" class="preview" src="${src}">\n            <div style=\"margin-top:8px\"><button data-delete-room="${i}" type="button" style=\"background:#e74c3c\">Eliminar imagen</button></div>\n          </div>\n          <div class="col">\n            <label>Reemplazar imagen</label>\n            <input data-room-index="${i}" class="roomInput" type="file" accept="image/*">\n            <label style=\"margin-top:8px\">Título</label>\n            <input data-room-title-index="${i}" class="roomTitle" type="text" value="${escapeHtml(title)}">\n            <label style=\"margin-top:8px\">Precio</label>\n            <input data-room-price-index="${i}" class="roomPrice" type="text" value="${escapeHtml(price)}">\n            <label style=\"margin-top:8px\">Capacidad</label>\n            <input data-room-capacity-index="${i}" class="roomCapacity" type="text" value="${escapeHtml(capacity)}">\n            <label style=\"margin-top:8px\">Comodidades</label>\n            <textarea data-room-features-index="${i}" class="roomFeatures" placeholder="Internet, TV Cable, Aire Acondicionado">${escapeHtml(features)}</textarea>\n            <label style=\"margin-top:8px\">Descripción</label>\n            <textarea data-room-desc-index="${i}" class="roomDesc">${escapeHtml(desc)}</textarea>\n          </div>\n        `;
         roomsContainer.appendChild(wrapper);
       });
 
@@ -225,10 +227,12 @@
         const title = (img.closest('.room-card')?.querySelector('h3')?.textContent) || '';
         const desc = (img.closest('.room-card')?.querySelector('.room-description')?.textContent) || '';
         const price = (img.closest('.room-card')?.querySelector('.room-price')?.textContent) || '';
+        const capacity = (img.closest('.room-card')?.querySelector('.room-capacity')?.textContent) || '';
+        const features = Array.from(img.closest('.room-card')?.querySelectorAll('.room-features span') || []).map(span => span.textContent.trim()).filter(Boolean).join('\n');
         const wrapper = document.createElement('div');
         wrapper.className='row section';
         wrapper.style.marginBottom='8px';
-        wrapper.innerHTML = `\n          <div class="col">\n            <label>Room ${i+1} preview</label>\n            <img id="roomPreview${i}" class="preview" src="${src}">\n            <div style="margin-top:8px"><button data-delete-room="${i}" type="button" style="background:#e74c3c">Eliminar imagen</button></div>\n          </div>\n          <div class="col">\n            <label>Reemplazar imagen</label>\n            <input data-room-index="${i}" class="roomInput" type="file" accept="image/*">\n            <label style="margin-top:8px">Título</label>\n            <input data-room-title-index="${i}" class="roomTitle" type="text" value="${escapeHtml(title)}">\n            <label style="margin-top:8px">Precio</label>\n            <input data-room-price-index="${i}" class="roomPrice" type="text" value="${escapeHtml(price)}">\n            <label style="margin-top:8px">Descripción</label>\n            <textarea data-room-desc-index="${i}" class="roomDesc">${escapeHtml(desc)}</textarea>\n          </div>\n        `;
+        wrapper.innerHTML = `\n          <div class="col">\n            <label>Room ${i+1} preview</label>\n            <img id="roomPreview${i}" class="preview" src="${src}">\n            <div style="margin-top:8px"><button data-delete-room="${i}" type="button" style="background:#e74c3c">Eliminar imagen</button></div>\n          </div>\n          <div class="col">\n            <label>Reemplazar imagen</label>\n            <input data-room-index="${i}" class="roomInput" type="file" accept="image/*">\n            <label style="margin-top:8px">Título</label>\n            <input data-room-title-index="${i}" class="roomTitle" type="text" value="${escapeHtml(title)}">\n            <label style="margin-top:8px">Precio</label>\n            <input data-room-price-index="${i}" class="roomPrice" type="text" value="${escapeHtml(price)}">\n            <label style="margin-top:8px">Capacidad</label>\n            <input data-room-capacity-index="${i}" class="roomCapacity" type="text" value="${escapeHtml(capacity)}">\n            <label style="margin-top:8px">Comodidades</label>\n            <textarea data-room-features-index="${i}" class="roomFeatures" placeholder="Internet, TV Cable, Aire Acondicionado">${escapeHtml(features)}</textarea>\n            <label style="margin-top:8px">Descripción</label>\n            <textarea data-room-desc-index="${i}" class="roomDesc">${escapeHtml(desc)}</textarea>\n          </div>\n        `;
         roomsContainer.appendChild(wrapper);
       });
       const galleryImgs = Array.from(doc.querySelectorAll('.gallery-grid .gallery-item img'));
@@ -346,6 +350,20 @@
         });
       });
 
+      document.querySelectorAll('.roomCapacity').forEach(inp=>{
+        inp.addEventListener('input', e=>{
+          const i = e.target.dataset.roomCapacityIndex;
+          state.replacements['room-capacity-'+i] = e.target.value;
+        });
+      });
+
+      document.querySelectorAll('.roomFeatures').forEach(inp=>{
+        inp.addEventListener('input', e=>{
+          const i = e.target.dataset.roomFeaturesIndex;
+          state.replacements['room-features-'+i] = e.target.value;
+        });
+      });
+
       document.querySelectorAll('.galInput').forEach(inp=>{
         inp.addEventListener('change', e=>{
           const i = e.target.dataset.galIndex;
@@ -367,13 +385,13 @@
     }
 
     // helpers to create dynamic editors for new rooms/gallery
-    function createRoomEditorForNew(index, src='', title='', desc='', price=''){
+    function createRoomEditorForNew(index, src='', title='', desc='', price='', capacity='', features=''){
       state.replacements = state.replacements || {};
       const roomsContainer = document.getElementById('rooms');
       const wrapper = document.createElement('div');
       wrapper.className='row section';
       wrapper.id = 'newRoomEditor'+index;
-      wrapper.innerHTML = `\n        <div class="col">\n          <label>Room ${index+1} preview</label>\n          <img id="newRoomPreview${index}" class="preview" src="${src}">\n          <div style="margin-top:8px"><button data-delete-new-room="${index}" type="button" style="background:#e74c3c">Eliminar</button></div>\n        </div>\n        <div class="col">\n          <label>Reemplazar imagen</label>\n          <input data-new-room-index="${index}" class="roomInputNew" type="file" accept="image/*">\n          <label style="margin-top:8px">Título</label>\n          <input data-new-room-title-index="${index}" class="roomTitleNew" type="text" value="${escapeHtml(title)}">\n          <label style="margin-top:8px">Precio</label>\n          <input data-new-room-price-index="${index}" class="roomPriceNew" type="text" value="${escapeHtml(price)}">\n          <label style="margin-top:8px">Descripción</label>\n          <textarea data-new-room-desc-index="${index}" class="roomDescNew">${escapeHtml(desc)}</textarea>\n        </div>\n      `;
+      wrapper.innerHTML = `\n        <div class="col">\n          <label>Room ${index+1} preview</label>\n          <img id="newRoomPreview${index}" class="preview" src="${src}">\n          <div style="margin-top:8px"><button data-delete-new-room="${index}" type="button" style="background:#e74c3c">Eliminar</button></div>\n        </div>\n        <div class="col">\n          <label>Reemplazar imagen</label>\n          <input data-new-room-index="${index}" class="roomInputNew" type="file" accept="image/*">\n          <label style="margin-top:8px">Título</label>\n          <input data-new-room-title-index="${index}" class="roomTitleNew" type="text" value="${escapeHtml(title)}">\n          <label style="margin-top:8px">Precio</label>\n          <input data-new-room-price-index="${index}" class="roomPriceNew" type="text" value="${escapeHtml(price)}">\n          <label style="margin-top:8px">Capacidad</label>\n          <input data-new-room-capacity-index="${index}" class="roomCapacityNew" type="text" value="${escapeHtml(capacity)}">\n          <label style="margin-top:8px">Comodidades</label>\n          <textarea data-new-room-features-index="${index}" class="roomFeaturesNew" placeholder="Internet, TV Cable, Aire Acondicionado">${escapeHtml(features)}</textarea>\n          <label style="margin-top:8px">Descripción</label>\n          <textarea data-new-room-desc-index="${index}" class="roomDescNew">${escapeHtml(desc)}</textarea>\n        </div>\n      `;
       roomsContainer.appendChild(wrapper);
       // attach handlers
       wrapper.querySelector('[data-new-room-index]').addEventListener('change', e=>{
@@ -389,6 +407,12 @@
       wrapper.querySelector('[data-new-room-price-index]').addEventListener('input', e=>{
         state.replacements['new-room-price-'+index] = e.target.value;
       });
+      wrapper.querySelector('[data-new-room-capacity-index]').addEventListener('input', e=>{
+        state.replacements['new-room-capacity-'+index] = e.target.value;
+      });
+      wrapper.querySelector('[data-new-room-features-index]').addEventListener('input', e=>{
+        state.replacements['new-room-features-'+index] = e.target.value;
+      });
       wrapper.querySelector('[data-new-room-desc-index]').addEventListener('input', e=>{
         state.replacements['new-room-desc-'+index] = e.target.value;
       });
@@ -396,6 +420,8 @@
         delete state.replacements['new-room-'+index];
         delete state.replacements['new-room-title-'+index];
         delete state.replacements['new-room-price-'+index];
+        delete state.replacements['new-room-capacity-'+index];
+        delete state.replacements['new-room-features-'+index];
         delete state.replacements['new-room-desc-'+index];
         const el = document.getElementById('newRoomEditor'+index); if(el) el.remove();
       });
@@ -419,6 +445,22 @@
         delete state.replacements['new-gal-'+index];
         const el = document.getElementById('newGalEditor'+index); if(el) el.remove();
       });
+    }
+
+    function buildRoomFeaturesHtml(text){
+      const items = String(text || '').split(/\n|,|;/).map(item=>item.trim()).filter(Boolean);
+      if(!items.length) return '';
+      return items.map(item=>{
+        const label = item.toLowerCase();
+        let icon = 'fa-check-circle';
+        if(label.includes('wifi') || label.includes('internet')) icon = 'fa-wifi';
+        else if(label.includes('tv') || label.includes('cable')) icon = 'fa-tv';
+        else if(label.includes('aire') || label.includes('clima') || label.includes('acondicionado')) icon = 'fa-snowflake';
+        else if(label.includes('desayuno')) icon = 'fa-utensils';
+        else if(label.includes('parking') || label.includes('estacion')) icon = 'fa-car';
+        else if(label.includes('baño') || label.includes('ducha')) icon = 'fa-bath';
+        return `<span><i class="fas ${icon}"></i> ${escapeHtml(item)}</span>`;
+      }).join('');
     }
 
     function readFileAsDataURL(file){
@@ -457,7 +499,7 @@
           const titleEl = card.querySelector('h3'); if(state.replacements['room-title-'+i] && titleEl) titleEl.textContent = state.replacements['room-title-'+i];
           const descEl = card.querySelector('.room-description'); if(state.replacements['room-desc-'+i] && descEl) descEl.textContent = state.replacements['room-desc-'+i];
           const priceText = state.replacements['room-price-'+i];
-          if(priceText){
+          if(priceText !== undefined){
             let priceEl = card.querySelector('.room-price');
             if(!priceEl){
               priceEl = doc.createElement('p');
@@ -466,6 +508,28 @@
               if(roomInfo) roomInfo.insertBefore(priceEl, roomInfo.querySelector('.room-features'));
             }
             priceEl.textContent = priceText;
+          }
+          const capacityText = state.replacements['room-capacity-'+i];
+          if(capacityText !== undefined){
+            let capacityEl = card.querySelector('.room-capacity');
+            if(!capacityEl){
+              capacityEl = doc.createElement('p');
+              capacityEl.className = 'room-capacity';
+              const roomInfo = card.querySelector('.room-info');
+              if(roomInfo) roomInfo.insertBefore(capacityEl, roomInfo.querySelector('.room-features'));
+            }
+            capacityEl.innerHTML = `<i class="fas fa-bed"></i> ${escapeHtml(capacityText)}`;
+          }
+          const featuresText = state.replacements['room-features-'+i];
+          if(featuresText !== undefined){
+            let featuresEl = card.querySelector('.room-features');
+            if(!featuresEl){
+              featuresEl = doc.createElement('div');
+              featuresEl.className = 'room-features';
+              const roomInfo = card.querySelector('.room-info');
+              if(roomInfo) roomInfo.insertBefore(featuresEl, roomInfo.querySelector('.room-capacity'));
+            }
+            featuresEl.innerHTML = buildRoomFeaturesHtml(featuresText);
           }
         }
 
@@ -488,11 +552,13 @@
                 const title = state.replacements['new-room-title-'+idx] || 'Nueva Habitación';
                 const desc = state.replacements['new-room-desc-'+idx] || '';
                 const price = state.replacements['new-room-price-'+idx] || 'Precio a consultar';
+                const capacity = state.replacements['new-room-capacity-'+idx] || 'Para 2 personas';
+                const features = state.replacements['new-room-features-'+idx] || 'Internet\nTV Cable\nAire Acondicionado';
                 const card = doc.createElement('div'); card.className='room-card';
                 const img = doc.createElement('img'); if(src) img.setAttribute('src', src);
                 card.appendChild(img);
                 const info = doc.createElement('div'); info.className='room-info';
-                info.innerHTML = `<h3>${escapeHtml(title)}</h3><p class="room-description">${escapeHtml(desc)}</p><p class="room-price">${escapeHtml(price)}</p><div class="room-features"> <span><i class="fas fa-wifi"></i> Internet</span> <span><i class="fas fa-tv"></i> TV Cable</span> <span><i class="fas fa-snowflake"></i> Aire Acondicionado</span></div><p class="room-capacity"><i class="fas fa-bed"></i> Para 2 personas</p>`;
+                info.innerHTML = `<h3>${escapeHtml(title)}</h3><p class="room-description">${escapeHtml(desc)}</p><p class="room-price">${escapeHtml(price)}</p><div class="room-features">${buildRoomFeaturesHtml(features)}</div><p class="room-capacity"><i class="fas fa-bed"></i> ${escapeHtml(capacity)}</p>`;
                 card.appendChild(info);
                 habitGrid.appendChild(card);
               }
