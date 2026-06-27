@@ -374,8 +374,13 @@
                     const chunksSnap = await getDocs(query(collection(doc(db,'images',id),'chunks'), orderBy('index')));
                     const parts = [];
                     chunksSnap.forEach(chunkDoc => { parts.push(chunkDoc.data().data); });
+                    if(parts.length === 0){
+                        console.warn('No se encontraron chunks para la imagen', id);
+                        continue;
+                    }
                     const dataUrl = header + parts.join('');
-                    html = html.split('FIREBASE_IMG::'+id).join(encodeURI(dataUrl));
+                    // Use raw data URL (do not encode) so the browser can render base64 correctly
+                    html = html.split('FIREBASE_IMG::'+id).join(dataUrl);
                 }
                 return html;
             }
