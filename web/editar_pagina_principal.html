@@ -232,7 +232,7 @@
         const wrapper = document.createElement('div');
         wrapper.className='row section';
         wrapper.style.marginBottom='8px';
-        wrapper.innerHTML = `\n          <div class="col">\n            <label>Room ${i+1} preview</label>\n            <img id="roomPreview${i}" class="preview" src="${src}">\n            <div style="margin-top:8px"><button data-delete-room="${i}" type="button" style="background:#e74c3c">Eliminar imagen</button></div>\n          </div>\n          <div class="col">\n            <label>Reemplazar imagen</label>\n            <input data-room-index="${i}" class="roomInput" type="file" accept="image/*">\n            <label style="margin-top:8px">Título</label>\n            <input data-room-title-index="${i}" class="roomTitle" type="text" value="${escapeHtml(title)}">\n            <label style="margin-top:8px">Precio</label>\n            <input data-room-price-index="${i}" class="roomPrice" type="text" value="${escapeHtml(price)}">\n            <label style="margin-top:8px">Capacidad</label>\n            <input data-room-capacity-index="${i}" class="roomCapacity" type="text" value="${escapeHtml(capacity)}">\n            <label style="margin-top:8px">Comodidades</label>\n            <textarea data-room-features-index="${i}" class="roomFeatures" placeholder="Internet, TV Cable, Aire Acondicionado">${escapeHtml(features)}</textarea>\n            <label style="margin-top:8px">Descripción</label>\n            <textarea data-room-desc-index="${i}" class="roomDesc">${escapeHtml(desc)}</textarea>\n          </div>\n        `;
+        wrapper.innerHTML = `\n          <div class="col">\n            <label>Room ${i+1} preview</label>\n            <img id="roomPreview${i}" class="preview" src="${src}">\n            <div style="margin-top:8px"><button data-delete-room="${i}" type="button" style="background:#e74c3c">Eliminar imagen</button></div>\n            <div style="margin-top:8px"><button data-delete-room-card="${i}" type="button" style="background:#c0392b">Eliminar habitación</button></div>\n          </div>\n          <div class="col">\n            <label>Reemplazar imagen</label>\n            <input data-room-index="${i}" class="roomInput" type="file" accept="image/*">\n            <label style="margin-top:8px">Título</label>\n            <input data-room-title-index="${i}" class="roomTitle" type="text" value="${escapeHtml(title)}">\n            <label style="margin-top:8px">Precio</label>\n            <input data-room-price-index="${i}" class="roomPrice" type="text" value="${escapeHtml(price)}">\n            <label style="margin-top:8px">Capacidad</label>\n            <input data-room-capacity-index="${i}" class="roomCapacity" type="text" value="${escapeHtml(capacity)}">\n            <label style="margin-top:8px">Comodidades</label>\n            <textarea data-room-features-index="${i}" class="roomFeatures" placeholder="Internet, TV Cable, Aire Acondicionado">${escapeHtml(features)}</textarea>\n            <label style="margin-top:8px">Descripción</label>\n            <textarea data-room-desc-index="${i}" class="roomDesc">${escapeHtml(desc)}</textarea>\n          </div>\n        `;
         roomsContainer.appendChild(wrapper);
       });
       const galleryImgs = Array.from(doc.querySelectorAll('.gallery-grid .gallery-item img'));
@@ -567,11 +567,7 @@
           const habitGrid = doc.querySelector('.habitaciones .habitaciones-grid');
           if(habitGrid){
             Object.keys(state.replacements).forEach(k=>{
-              if(k.startsWith('new-room-')){
-                const idx = k.split('new-room-')[1];
-                const src = state.replacements[k];
-                const title = state.replacements['new-room-title-'+idx] || 'Nueva Habitación';
-                const desc = state.replacements['new-room-desc-'+idx] || '';
+                if(/^new-room-\d+$/.test(k)){
                 const price = state.replacements['new-room-price-'+idx] || 'Precio a consultar';
                 const capacity = state.replacements['new-room-capacity-'+idx] || 'Para 2 personas';
                 const features = state.replacements['new-room-features-'+idx] || 'Internet\nTV Cable\nAire Acondicionado';
@@ -641,7 +637,7 @@
         // new rooms
         if(state.replacements){
           for(const k of Object.keys(state.replacements)){
-              if(k.startsWith('new-room-')){
+              if(/^new-room-\d+$/.test(k)){
               const idx = k.split('new-room-')[1]; const key = 'new-room-'+idx;
               const src = state.replacements[key]; if(src){ await storeImageDataURL(src); const imgs = Array.from(firebaseDoc.querySelectorAll('img')); imgs.forEach(img=>{ if(img.getAttribute('src')===src) img.setAttribute('src', src); }); }
             }
