@@ -495,10 +495,37 @@
     function readFileAsDataURL(file){
       return new Promise((res,rej)=>{
         if(!file){res('');return}
-        const fr=new FileReader();
-        fr.onload = ()=>res(fr.result);
-        fr.onerror = ()=>rej(fr.error);
-        fr.readAsDataURL(file);
+
+        const name = (file.name || '').toLowerCase();
+        const type = (file.type || '').toLowerCase();
+        const needsConversion = type === 'image/heic' || type === 'image/heif' || name.endsWith('.heic') || name.endsWith('.heif');
+
+        const fallbackRead = ()=>{
+          const fr = new FileReader();
+          fr.onload = ()=>res(fr.result);
+          fr.onerror = ()=>rej(fr.error);
+          fr.readAsDataURL(file);
+        };
+
+        if(!needsConversion){
+          fallbackRead();
+          return;
+        }
+
+        if(typeof createImageBitmap === 'function'){
+          createImageBitmap(file).then(bitmap=>{
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            if(!ctx){ fallbackRead(); return; }
+            canvas.width = bitmap.width;
+            canvas.height = bitmap.height;
+            ctx.drawImage(bitmap, 0, 0);
+            res(canvas.toDataURL('image/jpeg', 0.92));
+          }).catch(()=>fallbackRead());
+          return;
+        }
+
+        fallbackRead();
       });
     }
 
