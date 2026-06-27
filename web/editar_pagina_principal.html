@@ -461,10 +461,12 @@
       wrapper.id = 'newGalEditor'+index;
       wrapper.innerHTML = `\n        <div class="col">\n          <label>Galería ${index+1} preview</label>\n          <img id="newGalPreview${index}" class="preview" src="${src}">\n          <div style="margin-top:8px"><button data-delete-new-gal="${index}" type="button" style="background:#e74c3c">Eliminar</button></div>\n        </div>\n        <div class="col">\n          <label>Reemplazar imagen</label>\n          <input data-new-gal-index="${index}" class="galInputNew" type="file" accept="image/*">\n        </div>\n      `;
       galleryContainer.appendChild(wrapper);
+      const previewImg = wrapper.querySelector('img');
       wrapper.querySelector('[data-new-gal-index]').addEventListener('change', e=>{
         const file = e.target.files[0];
+        if(!file) return;
         readFileAsDataURL(file).then(data=>{
-          document.getElementById('newGalPreview'+index).src = data;
+          if(previewImg) previewImg.src = data;
           state.replacements['new-gal-'+index] = data;
         });
       });
@@ -597,6 +599,7 @@
                 const card = doc.createElement('div');
                 card.className = 'room-card';
                 const img = doc.createElement('img');
+                img.dataset.replacementKey = 'new-room-'+idx;
                 if(src) img.setAttribute('src', src);
                 card.appendChild(img);
                 const info = doc.createElement('div'); info.className='room-info';
@@ -668,9 +671,8 @@
         if(state.replacements){
           for(const k of Object.keys(state.replacements)){
             if(/^new-room-\d+$/.test(k)){
-              const idx = k.split('new-room-')[1]; const key = 'new-room-'+idx;
-              const src = state.replacements[key];
-              if(src){ const id = await storeImageDataURL(src); const imgs = Array.from(firebaseDoc.querySelectorAll('img')); imgs.forEach(img=>{ if(img.getAttribute('src')===src) img.setAttribute('src', 'FIREBASE_IMG::'+id); }); }
+              const src = state.replacements[k];
+              if(src){ const id = await storeImageDataURL(src); const img = firebaseDoc.querySelector(`img[data-replacement-key="${k}"]`); if(img) img.setAttribute('src', 'FIREBASE_IMG::'+id); }
             }
           }
         }
@@ -680,10 +682,21 @@
           for(const k of Object.keys(state.replacements)){
             if(k.startsWith('new-gal-')){
               const src = state.replacements[k];
-              if(src){ const id = await storeImageDataURL(src); const imgs = Array.from(firebaseDoc.querySelectorAll('img')); imgs.forEach(img=>{ if(img.getAttribute('src')===src) img.setAttribute('src', 'FIREBASE_IMG::'+id); }); }
+              if(src){
+                const id = await storeImageDataURL(src);
+                if(id){
+                  let img = firebaseDoc.querySelector(`img[data-replacement-key="${k}"]`);
+                  if(!img){
+                    img = Array.from(firebaseDoc.querySelectorAll('img')).find(node=> node.dataset.replacementKey === k || node.getAttribute('src') === src);
+                  }
+                  if(img) img.setAttribute('src', 'FIREBASE_IMG::'+id);
+                }
+              }
             }
           }
         }
+
+        firebaseDoc.querySelectorAll('img[data-replacement-key]').forEach(img=> img.removeAttribute('data-replacement-key'));
 
         const serializedFirebase = '<!DOCTYPE html>\n' + firebaseDoc.documentElement.outerHTML;
         try{
