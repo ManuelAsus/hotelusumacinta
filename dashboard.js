@@ -1178,7 +1178,7 @@ async function eliminarReserva(id) {
 function mostrarFormularioHabitacion(habitacion = null) {
   habitacionEditando = habitacion ? habitacion.id : null;
   const numero = habitacion ? habitacion.numero : '';
-  const tipo = habitacion ? habitacion.tipo : 'Simple';
+  const tipo = habitacion ? habitacion.tipo : 'Matrimonial';
   const capacidad = habitacion ? habitacion.capacidad : '';
   const precioNoche = habitacion ? habitacion.precioNoche : '';
   const estado = habitacion ? habitacion.estado : 'Disponible';
@@ -1200,9 +1200,10 @@ function mostrarFormularioHabitacion(habitacion = null) {
         <div>
           <label for="tipoHabitacion">Tipo</label>
           <select id="tipoHabitacion">
-            <option value="Simple" ${tipo === 'Simple' ? 'selected' : ''}>Simple</option>
-            <option value="Doble" ${tipo === 'Doble' ? 'selected' : ''}>Doble</option>
-            <option value="Suite" ${tipo === 'Suite' ? 'selected' : ''}>Suite</option>
+            <option value="Matrimonial" ${tipo === 'Matrimonial' ? 'selected' : ''}>Matrimonial</option>
+            <option value="King Size" ${tipo === 'King Size' ? 'selected' : ''}>King Size</option>
+            <option value="Presidencial" ${tipo === 'Presidencial' ? 'selected' : ''}>Presidencial</option>
+            <option value="Individual" ${tipo === 'Individual' ? 'selected' : ''}>Individual</option>
           </select>
         </div>
 
