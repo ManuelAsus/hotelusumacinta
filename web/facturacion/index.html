@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Facturación - Hotel Casa Usumacinta</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="page-shell">
+    <header class="hero">
+      <div>
+        <p class="eyebrow">Portal para huéspedes</p>
+        <h1>Tu factura en minutos</h1>
+        <p>Completa tus datos de reserva y descarga tu comprobante de pago en formato PDF desde el mismo portal.</p>
+      </div>
+      <a class="back-link" href="../index.html">← Volver al sitio</a>
+    </header>
+
+    <main class="layout">
+      <section class="panel form-panel">
+        <h2>Información de la reserva</h2>
+        <p class="helper-text">Ingresa tus datos y genera tu factura de forma rápida, clara y segura.</p>
+        <form id="invoiceForm">
+          <div class="field-grid">
+            <label>
+              <span>Nombre del cliente</span>
+              <input type="text" id="cliente" name="cliente" placeholder="Ej. Ana López" required />
+            </label>
+            <label>
+              <span>RFC / Identificación</span>
+              <input type="text" id="rfc" name="rfc" placeholder="XAXX010101000" />
+            </label>
+            <label>
+              <span>Correo</span>
+              <input type="email" id="correo" name="correo" placeholder="cliente@correo.com" required />
+            </label>
+            <label>
+              <span>Teléfono</span>
+              <input type="tel" id="telefono" name="telefono" placeholder="934 111 8398" required />
+            </label>
+            <label>
+              <span>Habitación</span>
+              <select id="habitacion" name="habitacion" required>
+                <option value="Matrimonial">Matrimonial</option>
+                <option value="King Size">King Size</option>
+                <option value="Presidencial">Presidencial</option>
+                <option value="Individual">Individual</option>
+              </select>
+            </label>
+            <label>
+              <span>Noches</span>
+              <input type="number" id="noches" name="noches" min="1" value="2" required />
+            </label>
+            <label>
+              <span>Folio</span>
+              <input type="text" id="folio" name="folio" value="F-2026-001" />
+            </label>
+            <label>
+              <span>Forma de pago</span>
+              <select id="pago" name="pago">
+                <option value="Efectivo">Efectivo</option>
+                <option value="Transferencia">Transferencia</option>
+                <option value="Tarjeta">Tarjeta</option>
+                <option value="Crédito">Crédito</option>
+              </select>
+            </label>
+            <label>
+              <span>Descuento (%)</span>
+              <input type="number" id="descuento" name="descuento" min="0" max="100" value="0" />
+            </label>
+            <label>
+              <span>Fecha de emisión</span>
+              <input type="date" id="fechaEmision" name="fechaEmision" />
+            </label>
+          </div>
+
+          <div class="checkboxes">
+            <label><input type="checkbox" id="desayuno" /> Desayuno incluido</label>
+            <label><input type="checkbox" id="transporte" /> Transporte</label>
+            <label><input type="checkbox" id="limpieza" /> Servicio de limpieza</label>
+          </div>
+
+          <label>
+            <span>Observaciones</span>
+            <textarea id="observaciones" name="observaciones" rows="3" placeholder="Ej. Llegada tardía, 2 personas, etc."></textarea>
+          </label>
+
+          <div class="actions">
+            <button type="submit" class="btn btn-primary">Generar mi factura</button>
+            <button type="button" id="resetBtn" class="btn btn-secondary">Limpiar</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="panel invoice-panel">
+        <div class="invoice-header">
+          <div>
+            <p class="eyebrow">Vista previa</p>
+            <h2 id="invoiceTitle">Factura preliminar</h2>
+          </div>
+          <button id="downloadBtn" class="btn btn-secondary">Descargar PDF</button>
+        </div>
+
+        <div id="invoicePreview" class="invoice-preview">
+          <div class="company-bar">
+            <div>
+              <h3>Hotel Casa Usumacinta</h3>
+              <p>Colonia Pedregal de Montecristo, Emiliano Zapata Centro</p>
+              <p>Tel: 934 111 8398 • info@casausumacinta.com</p>
+            </div>
+            <div class="invoice-badge">
+              <strong id="invoiceNumber">Factura preliminar</strong>
+              <span id="invoiceDate">Fecha: --</span>
+            </div>
+          </div>
+
+          <div class="invoice-meta">
+            <div class="client-block">
+              <h4>Datos del cliente</h4>
+              <p id="previewCliente">Sin datos</p>
+              <p id="previewContacto">Correo y teléfono aparecerán aquí</p>
+              <p id="previewRfc">RFC: --</p>
+            </div>
+            <div class="invoice-details">
+              <div><span>Folio</span><strong id="previewFolio">--</strong></div>
+              <div><span>Forma de pago</span><strong id="previewPago">--</strong></div>
+              <div><span>Fecha de emisión</span><strong id="previewFecha">--</strong></div>
+            </div>
+          </div>
+
+          <table class="invoice-table">
+            <thead>
+              <tr>
+                <th>Concepto</th>
+                <th>Detalle</th>
+                <th>Total</th>
+              </tr>
+            </thead>
+            <tbody id="invoiceItems"></tbody>
+          </table>
+
+          <div class="totals">
+            <div><span>Subtotal</span><strong id="subtotal">$0.00</strong></div>
+            <div><span>IVA (16%)</span><strong id="iva">$0.00</strong></div>
+            <div><span>Descuento</span><strong id="discountValue">$0.00</strong></div>
+            <div class="grand-total"><span>Total</span><strong id="total">$0.00</strong></div>
+          </div>
+
+          <div class="notes">
+            <h3>Observaciones</h3>
+            <p id="previewObservaciones">Sin observaciones.</p>
+            <p class="small-note">Condiciones: Pago anticipado o al momento del check-in. Esta factura es un simulador para uso demostrativo.</p>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
