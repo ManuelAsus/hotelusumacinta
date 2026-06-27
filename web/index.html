@@ -387,45 +387,61 @@
             }
 
             async function trySyncFromFirestore(){
-                try{
-                    showStatus('Comprobando Firestore para actualizaciones...');
-                    const app = initializeApp(firebaseConfig);
-                    const db = getFirestore(app);
-                    const snap = await getDoc(doc(db,'pages','index'));
-                    if(!snap.exists()){ throw new Error('pages/index no existe'); }
-                            const data = snap.data();
-                    if(!data || !data.templateHtml){ throw new Error('pages/index sin templateHtml'); }
-                    const updatedAt = data.updatedAt || '';
-                    const resolvedHtml = await resolveFirebaseImagePlaceholders(data.templateHtml);
+                const isFileProtocol = location.protocol === 'file:';
+                const isSecureContext = window.isSecureContext || location.protocol === 'https:' || location.protocol === 'http:';
+
+                if(isFileProtocol || !isSecureContext){
+                    console.warn('La sincronización con Firestore se omite porque la página no está en un contexto seguro.');
+                    hideStatus();
+                    return;
+                }
+
+                let lastError = null;
+                for(let attempt = 1; attempt <= 3; attempt++){
                     try{
-                        // Avoid saving extremely large resolved HTML into localStorage which can exceed quota.
-                        const MAX_LOCAL_SAVE = 1200000; // 1.2MB
-                        if(resolvedHtml && resolvedHtml.length <= MAX_LOCAL_SAVE){
-                            localStorage.setItem(LOCAL_HTML_KEY, resolvedHtml);
-                        }else{
-                            console.warn('Resolved HTML too large for localStorage; saving placeholder template only');
-                            try{ localStorage.setItem(LOCAL_HTML_KEY + '_PLACEHOLDER', data.templateHtml); }catch(e){ console.warn('Failed to save placeholder template to localStorage', e); }
-                        }
-                        try{ localStorage.setItem(LOCAL_UPDATED_KEY, updatedAt || new Date().toISOString()); }catch(e){ console.warn('Failed to save update timestamp to localStorage', e); }
+                        showStatus(`Sincronizando Firestore (intento ${attempt}/3)...`);
+                        const app = initializeApp(firebaseConfig);
+                        const db = getFirestore(app);
+
+                        const syncPromise = (async () => {
+                            const snap = await getDoc(doc(db,'pages','index'));
+                            if(!snap.exists()){ throw new Error('pages/index no existe'); }
+                            const data = snap.data();
+                            if(!data || !data.templateHtml){ throw new Error('pages/index sin templateHtml'); }
+                            const updatedAt = data.updatedAt || '';
+                            const resolvedHtml = await resolveFirebaseImagePlaceholders(data.templateHtml);
+                            try{
+                                const MAX_LOCAL_SAVE = 1200000;
+                                if(resolvedHtml && resolvedHtml.length <= MAX_LOCAL_SAVE){
+                                    localStorage.setItem(LOCAL_HTML_KEY, resolvedHtml);
+                                }else{
+                                    console.warn('Resolved HTML demasiado grande para localStorage; se guarda solo el template con placeholders');
+                                    try{ localStorage.setItem(LOCAL_HTML_KEY + '_PLACEHOLDER', data.templateHtml); }catch(e){ console.warn('No se pudo guardar el template placeholder en localStorage', e); }
+                                }
+                                try{ localStorage.setItem(LOCAL_UPDATED_KEY, updatedAt || new Date().toISOString()); }catch(e){ console.warn('No se pudo guardar la marca de tiempo en localStorage', e); }
+                            }catch(e){
+                                console.warn('No se pudo persistir en localStorage', e);
+                            }
+                            return resolvedHtml;
+                        })();
+
+                        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout sincronizando Firestore')), 3000));
+                        const resolvedHtml = await Promise.race([syncPromise, timeoutPromise]);
+
+                        showStatus('Encontrado HTML en Firestore — aplicando cambios...');
+                        applyHtml(resolvedHtml);
+                        return;
                     }catch(e){
-                        console.warn('Skipping localStorage save due to error', e);
+                        lastError = e;
+                        console.warn(`Intento ${attempt} de sincronización fallido:`, e);
+                        if(attempt < 3){
+                            await new Promise(resolve => setTimeout(resolve, 1500));
+                        }
                     }
-
-                    showStatus('Encontrado HTML en Firestore — aplicando cambios...');
-                    applyHtml(resolvedHtml);
-                    return;
-                }catch(e){
-                    console.warn('No se pudo sincronizar desde Firestore:', e);
                 }
 
-                const localHtml = localStorage.getItem(LOCAL_HTML_KEY);
-                if(localHtml){
-                    showStatus('Aplicando versión guardada localmente en este navegador.');
-                    applyHtml(localHtml);
-                    return;
-                }
-
-                showStatus('Error sincronizando desde Firestore (ver consola).');
+                console.warn('No se pudo sincronizar desde Firestore después de los reintentos:', lastError);
+                showStatus('Esperando sincronización con Firestore...');
             }
 
             trySyncFromFirestore();
