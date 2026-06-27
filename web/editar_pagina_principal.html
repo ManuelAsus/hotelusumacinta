@@ -142,8 +142,13 @@
     };
 
     function saveToLocalStorage(html){
-      localStorage.setItem(LOCAL_HTML_KEY, html);
-      localStorage.setItem(LOCAL_UPDATED_KEY, new Date().toISOString());
+      try{
+        const compact = html.length > 1200000 ? html.replace(/src="data:image[^\"]+"/gi, 'src=""') : html;
+        localStorage.setItem(LOCAL_HTML_KEY, compact);
+        localStorage.setItem(LOCAL_UPDATED_KEY, new Date().toISOString());
+      }catch(err){
+        console.warn('No se pudo guardar HTML en localStorage:', err);
+      }
     }
 
     function loadFromLocalStorage(){
