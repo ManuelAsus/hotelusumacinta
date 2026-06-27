@@ -185,7 +185,7 @@
         const wrapper = document.createElement('div');
         wrapper.className='row section';
         wrapper.style.marginBottom='8px';
-        wrapper.innerHTML = `\n          <div class="col">\n            <label>Room ${i+1} preview</label>\n            <img id="roomPreview${i}" class="preview" src="${src}">\n            <div style=\"margin-top:8px\"><button data-delete-room="${i}" type="button" style=\"background:#e74c3c\">Eliminar imagen</button></div>\n          </div>\n          <div class="col">\n            <label>Reemplazar imagen</label>\n            <input data-room-index="${i}" class="roomInput" type="file" accept="image/*">\n            <label style=\"margin-top:8px\">Título</label>\n            <input data-room-title-index="${i}" class="roomTitle" type="text" value="${escapeHtml(title)}">\n            <label style=\"margin-top:8px\">Precio</label>\n            <input data-room-price-index="${i}" class="roomPrice" type="text" value="${escapeHtml(price)}">\n            <label style=\"margin-top:8px\">Capacidad</label>\n            <input data-room-capacity-index="${i}" class="roomCapacity" type="text" value="${escapeHtml(capacity)}">\n            <label style=\"margin-top:8px\">Comodidades</label>\n            <textarea data-room-features-index="${i}" class="roomFeatures" placeholder="Internet, TV Cable, Aire Acondicionado">${escapeHtml(features)}</textarea>\n            <label style=\"margin-top:8px\">Descripción</label>\n            <textarea data-room-desc-index="${i}" class="roomDesc">${escapeHtml(desc)}</textarea>\n          </div>\n        `;
+        wrapper.innerHTML = `\n          <div class="col">\n            <label>Room ${i+1} preview</label>\n            <img id="roomPreview${i}" class="preview" src="${src}">\n            <div style=\"margin-top:8px\"><button data-delete-room="${i}" type="button" style=\"background:#e74c3c\">Eliminar imagen</button></div>\n            <div style=\"margin-top:8px\"><button data-delete-room-card="${i}" type="button" style=\"background:#c0392b\">Eliminar habitación</button></div>\n          </div>\n          <div class="col">\n            <label>Reemplazar imagen</label>\n            <input data-room-index="${i}" class="roomInput" type="file" accept="image/*">\n            <label style=\"margin-top:8px\">Título</label>\n            <input data-room-title-index="${i}" class="roomTitle" type="text" value="${escapeHtml(title)}">\n            <label style=\"margin-top:8px\">Precio</label>\n            <input data-room-price-index="${i}" class="roomPrice" type="text" value="${escapeHtml(price)}">\n            <label style=\"margin-top:8px\">Capacidad</label>\n            <input data-room-capacity-index="${i}" class="roomCapacity" type="text" value="${escapeHtml(capacity)}">\n            <label style=\"margin-top:8px\">Comodidades</label>\n            <textarea data-room-features-index="${i}" class="roomFeatures" placeholder="Internet, TV Cable, Aire Acondicionado">${escapeHtml(features)}</textarea>\n            <label style=\"margin-top:8px\">Descripción</label>\n            <textarea data-room-desc-index="${i}" class="roomDesc">${escapeHtml(desc)}</textarea>\n          </div>\n        `;
         roomsContainer.appendChild(wrapper);
       });
 
@@ -326,6 +326,14 @@
         btn.addEventListener('click', e=>{
           const i = btn.getAttribute('data-delete-room');
           markDeletion('room-'+i, 'roomPreview'+i);
+        });
+      });
+      document.querySelectorAll('[data-delete-room-card]').forEach(btn=>{
+        btn.addEventListener('click', e=>{
+          const i = btn.getAttribute('data-delete-room-card');
+          markDeletion('roomcard-'+i);
+          const wrapper = btn.closest('.row.section');
+          if(wrapper) wrapper.remove();
         });
       });
 
@@ -493,11 +501,24 @@
         // rooms existing
         const roomCards = Array.from(doc.querySelectorAll('.habitaciones .room-card'));
         for(let i=0;i<roomCards.length;i++){
-          const card = roomCards[i]; const img = card.querySelector('img');
-          if(state.deletions && state.deletions['room-'+i]){ if(img) img.remove(); }
-          else if(state.replacements['room-'+i] && img){ img.setAttribute('src', state.replacements['room-'+i]); }
-          const titleEl = card.querySelector('h3'); if(state.replacements['room-title-'+i] && titleEl) titleEl.textContent = state.replacements['room-title-'+i];
-          const descEl = card.querySelector('.room-description'); if(state.replacements['room-desc-'+i] && descEl) descEl.textContent = state.replacements['room-desc-'+i];
+          const card = roomCards[i];
+          if(state.deletions && state.deletions['roomcard-'+i]){ card.remove(); continue; }
+          const img = card.querySelector('img');
+          if(state.deletions && state.deletions['room-'+i]){
+            if(img) img.remove();
+          } else if(state.replacements['room-'+i] && img){
+            img.setAttribute('src', state.replacements['room-'+i]);
+          }
+          const titleEl = card.querySelector('h3');
+          const titleKey = 'room-title-'+i;
+          if(state.replacements[titleKey] && titleEl){
+            titleEl.textContent = state.replacements[titleKey];
+          }
+          const descEl = card.querySelector('.room-description');
+          const descKey = 'room-desc-'+i;
+          if(state.replacements[descKey] && descEl){
+            descEl.textContent = state.replacements[descKey];
+          }
           const priceText = state.replacements['room-price-'+i];
           if(priceText !== undefined){
             let priceEl = card.querySelector('.room-price');
