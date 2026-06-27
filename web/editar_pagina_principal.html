@@ -680,6 +680,34 @@
         // prepare a firebase-friendly copy
         const firebaseDoc = state.parser.parseFromString(serializedLocal,'text/html');
 
+        // Ensure any remaining data: URL images are uploaded and replaced with placeholders
+        const inlineImgs = Array.from(firebaseDoc.querySelectorAll('img')).filter(i=>{
+          const s = i.getAttribute('src') || '';
+          return s.startsWith('data:');
+        });
+        for(const imgEl of inlineImgs){
+          try{
+            const s = imgEl.getAttribute('src');
+            if(!s) continue;
+            // try to find a matching replacement key first
+            let id = null;
+            if(state.replacements){
+              for(const k of Object.keys(state.replacements)){
+                if(state.replacements[k] === s){
+                  id = await storeImageDataURL(s);
+                  break;
+                }
+              }
+            }
+            if(!id){
+              id = await storeImageDataURL(s);
+            }
+            if(id) imgEl.setAttribute('src', 'FIREBASE_IMG::'+id);
+          }catch(e){
+            console.warn('Failed uploading inline image for placeholder:', e);
+          }
+        }
+
         // upload images and replace the src in the stored HTML with placeholders
         if(firebaseDoc.querySelector('img.logo') && state.replacements.logo){ const logoId = await storeImageDataURL(state.replacements.logo); if(logoId) firebaseDoc.querySelector('img.logo').setAttribute('src', 'FIREBASE_IMG::'+logoId); }
         if(firebaseDoc.querySelector('.hero-image img') && state.replacements.hero){ const heroId = await storeImageDataURL(state.replacements.hero); if(heroId) firebaseDoc.querySelector('.hero-image img').setAttribute('src', 'FIREBASE_IMG::'+heroId); }
