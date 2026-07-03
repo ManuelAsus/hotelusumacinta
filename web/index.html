@@ -7,6 +7,7 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     <title>Hotel Casa Usumacinta - Tu Hogar Lejos de Casa</title>
+    <link rel="icon" type="image/png" href="../LOGO/LOGO.png" />
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
@@ -367,6 +368,18 @@
                 }
             }
 
+            function ensureFacturacionBtn(){
+                const nav = document.getElementById('navMenu') || document.querySelector('.nav-menu');
+                if(!nav) return;
+                if(nav.querySelector('a[href*="facturacion"]')) return;
+                const btn = document.createElement('a');
+                btn.href = 'facturacion/index.html';
+                btn.className = 'nav-link btn-login';
+                btn.style.cssText = 'margin-left:6px;background:#C1A44D;';
+                btn.textContent = 'Facturación';
+                nav.appendChild(btn);
+            }
+
             function applyHtml(html){
                 if(!html) return false;
                 const parser = new DOMParser();
@@ -374,6 +387,7 @@
                 document.title = doc.title || document.title;
                 document.body.innerHTML = doc.body.innerHTML;
                 document.body.querySelectorAll('script').forEach(script => script.remove());
+                ensureFacturacionBtn();
 
                 let statusEl = document.getElementById('firestore-sync-status');
                 if(!statusEl){

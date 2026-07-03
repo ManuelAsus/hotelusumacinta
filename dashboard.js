@@ -1,7 +1,7 @@
 import { firebaseConfig } from './config.js';
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-app.js";
 import { getAuth, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-auth.js";
-import { getFirestore, collection, getDocs, query, where, orderBy, limit, addDoc, doc, updateDoc, deleteDoc, getDoc } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-firestore.js";
+import { getFirestore, collection, getDocs, query, where, orderBy, limit, addDoc, doc, updateDoc, deleteDoc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-firestore.js";
 
 // Inicializar Firebase
 const app = initializeApp(firebaseConfig);
@@ -54,6 +54,8 @@ function cambiarSeccion(section) {
     if (buscarInput) buscarInput.value = '';
     if (filtroEstado) filtroEstado.value = '';
     cargarHabitaciones('', '');
+  } else if (section === 'ventas') {
+    cargarVentas();
   } else if (section === 'reservas') {
     cargarReservas();
   } else if (section === 'tickets') {
@@ -1617,6 +1619,649 @@ function irASeccion(section) {
   document.querySelector(`[data-section="${section}"]`).click();
 }
 
+// ============================================================
+// VENTAS — Gestión de Productos
+// ============================================================
+const PRODUCTO_CHUNK_SIZE = 700000; // ~700 KB por chunk (max 6 chunks)
+
+async function cargarVentas() {
+  const container = document.getElementById('productosGrid');
+  container.innerHTML = '<div class="empty-message"><i class="fas fa-spinner fa-spin"></i> Cargando productos...</div>';
+  try {
+    const snap = await getDocs(collection(db, 'productos'));
+    if (snap.empty) {
+      container.innerHTML = '<div class="empty-message">No hay productos registrados aún.</div>';
+      return;
+    }
+    const productos = [];
+    snap.forEach(d => productos.push({ id: d.id, ...d.data() }));
+    // Ordenar por fecha de creación (más reciente primero) de forma local
+    productos.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+
+    const productosConImg = await Promise.all(productos.map(async (p) => {
+      let imgSrc = '';
+      if (p.imagenChunked) {
+        try {
+          const chunksSnap = await getDocs(collection(db, 'productos', p.id, 'imageChunks'));
+          const chunks = {};
+          chunksSnap.forEach(c => { chunks[c.id] = c.data().data; });
+          let base64 = '', i = 1;
+          while (chunks[`chunk${i}`]) { base64 += chunks[`chunk${i}`]; i++; }
+          imgSrc = (p.imagenHeader || 'data:image/jpeg;base64,') + base64;
+        } catch (e) { console.warn('Error cargando imagen chunked', e); }
+      } else if (p.imagenInline) {
+        imgSrc = (p.imagenHeader || 'data:image/jpeg;base64,') + p.imagenInline;
+      }
+      return { ...p, imgSrc };
+    }));
+
+    let html = '<div class="productos-grid">';
+    productosConImg.forEach(p => {
+      const precioFmt = Number(p.precio).toLocaleString('es-MX', { minimumFractionDigits: 2 });
+      const imgTag = p.imgSrc
+        ? `<img src="${p.imgSrc}" alt="${p.nombre}" class="producto-img">`
+        : `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#d1d5db;"><i class="fas fa-image" style="font-size:36px;"></i></div>`;
+      html += `
+        <div class="producto-card">
+          <div class="producto-img-wrap">${imgTag}</div>
+          <div class="producto-info">
+            <h4 class="producto-nombre">${p.nombre}</h4>
+            <p class="producto-precio">$${precioFmt} MXN</p>
+            <p class="producto-stock"><i class="fas fa-boxes-stacked"></i> Stock: <strong>${p.stock}</strong></p>
+          </div>
+          <div class="producto-actions">
+            <button class="btn-action btn-edit" onclick="mostrarFormularioProducto('${p.id}')"><i class="fas fa-pen"></i> Editar</button>
+            <button class="btn-action btn-delete" onclick="eliminarProducto('${p.id}', ${p.imagenChunked ? 'true' : 'false'})"><i class="fas fa-trash"></i></button>
+          </div>
+        </div>`;
+    });
+    html += '</div>';
+    container.innerHTML = html;
+  } catch (e) {
+    console.error('Error cargando ventas', e);
+    container.innerHTML = '<div class="empty-message">Error al cargar los productos.</div>';
+  }
+}
+
+function mostrarFormularioProducto(productoId = null) {
+  const modal = document.getElementById('modal');
+  const modalContent = document.getElementById('modalContent');
+  const isEditing = !!productoId;
+  modalContent.innerHTML = `
+    <div class="modal-header">
+      <h2>${isEditing ? 'Editar Producto' : 'Agregar Producto'}</h2>
+      <button class="close-modal" onclick="cerrarModal()" aria-label="Cerrar">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div id="productoFormError" style="display:none;color:#991b1b;margin-bottom:12px;padding:10px 14px;background:#fee2e2;border-radius:8px;font-size:14px;"></div>
+      <div class="modal-form">
+        <div>
+          <label>Imagen del Producto</label>
+          <div class="img-upload-area" id="imgUploadArea" onclick="document.getElementById('productoImgInput').click()">
+            <img id="productoImgPreview" src="" style="display:none;width:100%;height:100%;object-fit:cover;">
+            <div id="imgUploadPlaceholder">
+              <i class="fas fa-image" style="font-size:32px;color:#C1A44D;"></i>
+              <span>Clic para seleccionar imagen</span>
+              <span style="font-size:11px;color:#d1d5db;">JPG, PNG, WEBP — máx. ~4 MB</span>
+            </div>
+          </div>
+          <input type="file" id="productoImgInput" accept="image/*" style="display:none" onchange="previewProductoImg(this)">
+        </div>
+        <div>
+          <label>Nombre del Producto *</label>
+          <input type="text" id="productoNombre" placeholder="Ej: Jugo de naranja natural">
+        </div>
+        <div>
+          <label>Precio (MXN) *</label>
+          <input type="number" id="productoPrecio" placeholder="Ej: 45.00" min="0" step="0.01">
+        </div>
+        <div>
+          <label>Stock *</label>
+          <input type="number" id="productoStock" placeholder="Ej: 20" min="0" step="1">
+        </div>
+      </div>
+    </div>
+    <div style="padding:16px 24px 20px;display:flex;gap:10px;justify-content:flex-end;border-top:1px solid #f3f4f6;">
+      <button class="btn-action btn-view" onclick="cerrarModal()">Cancelar</button>
+      <button class="btn-primary" id="btnGuardarProducto" onclick="guardarProducto('${productoId || ''}')">
+        <i class="fas fa-save"></i> ${isEditing ? 'Guardar Cambios' : 'Agregar Producto'}
+      </button>
+    </div>
+  `;
+  modal.classList.add('active');
+  if (isEditing) cargarDatosProductoEnModal(productoId);
+}
+
+async function cargarDatosProductoEnModal(productoId) {
+  try {
+    const snap = await getDoc(doc(db, 'productos', productoId));
+    if (!snap.exists()) return;
+    const p = snap.data();
+    document.getElementById('productoNombre').value = p.nombre || '';
+    document.getElementById('productoPrecio').value = p.precio || '';
+    document.getElementById('productoStock').value = p.stock || '';
+
+    let imgSrc = '';
+    if (p.imagenChunked) {
+      const chunksSnap = await getDocs(collection(db, 'productos', productoId, 'imageChunks'));
+      const chunks = {};
+      chunksSnap.forEach(c => { chunks[c.id] = c.data().data; });
+      let base64 = '', i = 1;
+      while (chunks[`chunk${i}`]) { base64 += chunks[`chunk${i}`]; i++; }
+      imgSrc = (p.imagenHeader || 'data:image/jpeg;base64,') + base64;
+    } else if (p.imagenInline) {
+      imgSrc = (p.imagenHeader || 'data:image/jpeg;base64,') + p.imagenInline;
+    }
+
+    if (imgSrc) {
+      const preview = document.getElementById('productoImgPreview');
+      const placeholder = document.getElementById('imgUploadPlaceholder');
+      preview.src = imgSrc;
+      preview.style.display = 'block';
+      if (placeholder) placeholder.style.display = 'none';
+      // Persist existing image metadata so save skips re-upload if unchanged
+      const input = document.getElementById('productoImgInput');
+      input.dataset.existingHeader = p.imagenHeader || '';
+      input.dataset.existingChunked = p.imagenChunked ? '1' : '0';
+      input.dataset.existingInline = p.imagenChunked ? '' : (p.imagenInline || '');
+    }
+  } catch (e) {
+    console.error('Error cargando datos del producto en modal', e);
+  }
+}
+
+function previewProductoImg(input) {
+  if (!input.files || !input.files[0]) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const preview = document.getElementById('productoImgPreview');
+    const placeholder = document.getElementById('imgUploadPlaceholder');
+    preview.src = e.target.result;
+    preview.style.display = 'block';
+    if (placeholder) placeholder.style.display = 'none';
+    // Clear existing metadata so the new file is used
+    delete input.dataset.existingHeader;
+  };
+  reader.readAsDataURL(input.files[0]);
+}
+
+async function procesarImagenProducto(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const dataUrl = e.target.result;
+      const commaIdx = dataUrl.indexOf(',');
+      const header = dataUrl.substring(0, commaIdx + 1);
+      const base64 = dataUrl.substring(commaIdx + 1);
+      if (base64.length <= PRODUCTO_CHUNK_SIZE) {
+        resolve({ header, chunked: false, inline: base64 });
+      } else {
+        const chunks = [];
+        for (let i = 0; i < base64.length; i += PRODUCTO_CHUNK_SIZE) {
+          chunks.push(base64.substring(i, i + PRODUCTO_CHUNK_SIZE));
+        }
+        if (chunks.length > 6) {
+          reject(new Error('La imagen es demasiado grande (máximo ~4 MB)'));
+          return;
+        }
+        resolve({ header, chunked: true, chunks });
+      }
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+async function guardarProducto(productoId) {
+  const nombre = document.getElementById('productoNombre').value.trim();
+  const precio = parseFloat(document.getElementById('productoPrecio').value);
+  const stock = parseInt(document.getElementById('productoStock').value, 10);
+  const imgInput = document.getElementById('productoImgInput');
+  const btn = document.getElementById('btnGuardarProducto');
+
+  const mostrarError = (msg) => {
+    const el = document.getElementById('productoFormError');
+    if (el) { el.textContent = msg; el.style.display = 'block'; }
+  };
+
+  if (!nombre)                     { mostrarError('El nombre del producto es obligatorio.'); return; }
+  if (isNaN(precio) || precio < 0) { mostrarError('Ingresa un precio válido.'); return; }
+  if (isNaN(stock)  || stock < 0)  { mostrarError('Ingresa un stock válido.'); return; }
+
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
+  document.getElementById('productoFormError').style.display = 'none';
+
+  try {
+    const isEditing = !!productoId;
+    const now = new Date().toISOString();
+    let imagenData = null;
+    const hasNewFile = imgInput.files && imgInput.files[0];
+    const hasExisting = imgInput.dataset.existingHeader !== undefined;
+
+    if (hasNewFile) {
+      imagenData = await procesarImagenProducto(imgInput.files[0]);
+    }
+
+    const docData = { nombre, precio, stock, updatedAt: now };
+    if (!isEditing) docData.createdAt = now;
+
+    if (imagenData) {
+      docData.imagenHeader  = imagenData.header;
+      docData.imagenChunked = imagenData.chunked;
+      docData.imagenInline  = imagenData.chunked ? '' : imagenData.inline;
+    }
+
+    let targetId = productoId;
+    if (isEditing) {
+      await updateDoc(doc(db, 'productos', productoId), docData);
+      // If replacing image and new one is chunked, remove old chunks first
+      if (imagenData && imagenData.chunked) {
+        const oldChunks = await getDocs(collection(db, 'productos', productoId, 'imageChunks'));
+        await Promise.all(oldChunks.docs.map(c => deleteDoc(doc(db, 'productos', productoId, 'imageChunks', c.id))));
+      }
+    } else {
+      const ref = await addDoc(collection(db, 'productos'), docData);
+      targetId = ref.id;
+    }
+
+    if (imagenData && imagenData.chunked) {
+      await Promise.all(imagenData.chunks.map((chunkData, idx) =>
+        setDoc(doc(db, 'productos', targetId, 'imageChunks', `chunk${idx + 1}`), { data: chunkData })
+      ));
+    }
+
+    cerrarModal();
+    cargarVentas();
+  } catch (e) {
+    console.error('Error guardando producto', e);
+    const el = document.getElementById('productoFormError');
+    if (el) { el.textContent = e.message || 'Error al guardar el producto. Intenta de nuevo.'; el.style.display = 'block'; }
+    btn.disabled = false;
+    btn.innerHTML = `<i class="fas fa-save"></i> ${productoId ? 'Guardar Cambios' : 'Agregar Producto'}`;
+  }
+}
+
+async function eliminarProducto(productoId, esChunked) {
+  if (!confirm('¿Eliminar este producto? Esta acción no se puede deshacer.')) return;
+  try {
+    if (esChunked) {
+      const chunksSnap = await getDocs(collection(db, 'productos', productoId, 'imageChunks'));
+      await Promise.all(chunksSnap.docs.map(c => deleteDoc(doc(db, 'productos', productoId, 'imageChunks', c.id))));
+    }
+    await deleteDoc(doc(db, 'productos', productoId));
+    cargarVentas();
+  } catch (e) {
+    console.error('Error eliminando producto', e);
+    alert('Error al eliminar el producto.');
+  }
+}
+
+// ---- Registrar Venta ----
+let _ventaProductosCatalogo = [];
+
+async function mostrarFormularioVenta() {
+  const modal = document.getElementById('modal');
+  const modalContent = document.getElementById('modalContent');
+  modalContent.innerHTML = `
+    <div class="modal-header">
+      <h2><i class="fas fa-receipt"></i> Registrar Venta</h2>
+      <button class="close-modal" onclick="cerrarModal()" aria-label="Cerrar">&times;</button>
+    </div>
+    <div class="modal-body" style="text-align:center;padding:40px;">
+      <i class="fas fa-spinner fa-spin" style="font-size:28px;color:#C1A44D;"></i>
+      <p style="margin-top:12px;color:#6b7280;">Cargando productos...</p>
+    </div>`;
+  modal.classList.add('active');
+
+  try {
+    const snap = await getDocs(collection(db, 'productos'));
+    _ventaProductosCatalogo = [];
+    snap.forEach(d => _ventaProductosCatalogo.push({ id: d.id, ...d.data() }));
+    // Ordenar por nombre localmente
+    _ventaProductosCatalogo.sort((a, b) => (a.nombre || '').localeCompare(b.nombre || '', 'es'));
+  } catch (e) {
+    console.error('Error cargando productos para venta', e);
+    _ventaProductosCatalogo = [];
+  }
+
+  const hayProductos = _ventaProductosCatalogo.length > 0;
+  const selectHtml = hayProductos
+    ? `<select id="ventaProductoSelect" onchange="actualizarInfoProductoVenta()">
+         <option value="">— Selecciona un producto —</option>
+         ${_ventaProductosCatalogo.map(p =>
+           `<option value="${p.id}" data-precio="${p.precio}" data-stock="${p.stock}">
+              ${p.nombre} — $${Number(p.precio).toFixed(2)} (Stock: ${p.stock})
+            </option>`).join('')}
+       </select>`
+    : `<p style="color:#9ca3af;font-size:14px;padding:10px;background:#f9fafb;border-radius:8px;text-align:center;">No hay productos disponibles. Agrega productos primero.</p>`;
+
+  modalContent.innerHTML = `
+    <div class="modal-header">
+      <h2><i class="fas fa-receipt"></i> Registrar Venta</h2>
+      <button class="close-modal" onclick="cerrarModal()" aria-label="Cerrar">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div id="ventaFormError" style="display:none;color:#991b1b;margin-bottom:12px;padding:10px 14px;background:#fee2e2;border-radius:8px;font-size:14px;"></div>
+      <div class="modal-form">
+        <div>
+          <label>Nombre del Cliente *</label>
+          <input type="text" id="ventaClienteNombre" placeholder="Ej: Juan García" autocomplete="off">
+        </div>
+        <div>
+          <label>Producto *</label>
+          ${selectHtml}
+        </div>
+        <div id="ventaInfoProducto" style="display:none;background:#f8faf7;padding:12px 16px;border-radius:10px;border:1px solid #dde8db;font-size:14px;">
+          <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+            <span style="color:#6b7280;">Precio unitario:</span>
+            <strong id="ventaPrecioUnitario" style="color:#C1A44D;">$0.00</strong>
+          </div>
+          <div style="display:flex;justify-content:space-between;">
+            <span style="color:#6b7280;">Stock disponible:</span>
+            <strong id="ventaStockDisponible">0</strong>
+          </div>
+        </div>
+        <div>
+          <label>Cantidad *</label>
+          <input type="number" id="ventaCantidad" min="1" max="9999" value="1" oninput="calcularTotalVenta()">
+        </div>
+        <div style="background:rgba(193,164,77,0.08);padding:14px 18px;border-radius:10px;border:1px solid rgba(193,164,77,0.25);">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <span style="font-size:14px;color:#374151;font-weight:600;">Total a pagar:</span>
+            <strong id="ventaTotal" style="color:#C1A44D;font-size:22px;font-weight:800;">$0.00</strong>
+          </div>
+        </div>
+        <div>
+          <label>Monto Recibido (MXN) *</label>
+          <input type="number" id="ventaMontoRecibido" min="0" step="0.01" placeholder="0.00" oninput="calcularCambioVenta()">
+        </div>
+        <div id="ventaCambioBox" style="display:none;background:#f0fdf4;padding:14px 18px;border-radius:10px;border:1px solid #bbf7d0;">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <span style="font-size:14px;color:#374151;font-weight:600;">Cambio a entregar:</span>
+            <strong id="ventaCambio" style="font-size:20px;font-weight:800;color:#166534;">$0.00</strong>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div style="padding:16px 24px 20px;display:flex;gap:10px;justify-content:flex-end;border-top:1px solid #f3f4f6;">
+      <button class="btn-action btn-view" onclick="cerrarModal()">Cancelar</button>
+      <button class="btn-primary" id="btnGuardarVenta" onclick="guardarVenta()" ${!hayProductos ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''}>
+        <i class="fas fa-receipt"></i> Guardar y Generar Ticket
+      </button>
+    </div>`;
+}
+
+function actualizarInfoProductoVenta() {
+  const select = document.getElementById('ventaProductoSelect');
+  const infoDiv = document.getElementById('ventaInfoProducto');
+  const cantInput = document.getElementById('ventaCantidad');
+  if (!select || !select.value) { if (infoDiv) infoDiv.style.display = 'none'; return; }
+  const opt = select.options[select.selectedIndex];
+  const precio = parseFloat(opt.dataset.precio) || 0;
+  const stock = parseInt(opt.dataset.stock, 10) || 0;
+  document.getElementById('ventaPrecioUnitario').textContent = `$${precio.toFixed(2)}`;
+  document.getElementById('ventaStockDisponible').textContent = stock;
+  cantInput.max = stock;
+  if (parseInt(cantInput.value, 10) > stock) cantInput.value = stock;
+  infoDiv.style.display = 'block';
+  calcularTotalVenta();
+}
+
+function calcularTotalVenta() {
+  const select = document.getElementById('ventaProductoSelect');
+  const cantInput = document.getElementById('ventaCantidad');
+  const totalEl = document.getElementById('ventaTotal');
+  if (!select || !select.value || !cantInput || !totalEl) return;
+  const precio = parseFloat(select.options[select.selectedIndex].dataset.precio) || 0;
+  const cant   = parseInt(cantInput.value, 10) || 0;
+  totalEl.textContent = `$${(precio * cant).toFixed(2)}`;
+  calcularCambioVenta();
+}
+
+function calcularCambioVenta() {
+  const totalEl   = document.getElementById('ventaTotal');
+  const montoInput = document.getElementById('ventaMontoRecibido');
+  const cambioEl  = document.getElementById('ventaCambio');
+  const cambioBox = document.getElementById('ventaCambioBox');
+  if (!totalEl || !montoInput || !cambioEl) return;
+  const total = parseFloat(totalEl.textContent.replace('$', '')) || 0;
+  const monto = parseFloat(montoInput.value) || 0;
+  if (monto <= 0) { if (cambioBox) cambioBox.style.display = 'none'; return; }
+  const cambio = monto - total;
+  if (cambioBox) {
+    cambioBox.style.display = 'block';
+    cambioBox.style.borderColor = cambio < 0 ? '#fecaca' : '#bbf7d0';
+    cambioBox.style.background  = cambio < 0 ? '#fff5f5' : '#f0fdf4';
+  }
+  cambioEl.style.color = cambio < 0 ? '#dc2626' : '#166534';
+  cambioEl.textContent = cambio < 0 ? `-$${Math.abs(cambio).toFixed(2)}` : `$${cambio.toFixed(2)}`;
+}
+
+async function guardarVenta() {
+  const clienteNombre    = (document.getElementById('ventaClienteNombre')?.value || '').trim();
+  const select           = document.getElementById('ventaProductoSelect');
+  const cantInput        = document.getElementById('ventaCantidad');
+  const montoInput       = document.getElementById('ventaMontoRecibido');
+  const totalEl          = document.getElementById('ventaTotal');
+  const btn              = document.getElementById('btnGuardarVenta');
+
+  const mostrarError = (msg) => {
+    const el = document.getElementById('ventaFormError');
+    if (el) { el.textContent = msg; el.style.display = 'block'; }
+  };
+
+  if (!clienteNombre)           { mostrarError('El nombre del cliente es obligatorio.'); return; }
+  if (!select || !select.value) { mostrarError('Selecciona un producto.'); return; }
+  const cant = parseInt(cantInput?.value, 10) || 0;
+  if (cant <= 0)                { mostrarError('La cantidad debe ser mayor a 0.'); return; }
+
+  const opt            = select.options[select.selectedIndex];
+  const productoId     = select.value;
+  const productoNombre = opt.text.split(' —')[0].trim();
+  const precioUnitario = parseFloat(opt.dataset.precio) || 0;
+  const stockActual    = parseInt(opt.dataset.stock, 10) || 0;
+  const total          = parseFloat(totalEl?.textContent.replace('$', '')) || 0;
+  const montoRecibido  = parseFloat(montoInput?.value) || 0;
+
+  if (cant > stockActual)       { mostrarError(`Stock insuficiente. Solo hay ${stockActual} unidad(es) disponible(s).`); return; }
+  if (montoRecibido <= 0)       { mostrarError('Ingresa el monto recibido.'); return; }
+  if (montoRecibido < total)    { mostrarError(`El monto recibido ($${montoRecibido.toFixed(2)}) es menor al total ($${total.toFixed(2)}).`); return; }
+
+  const cambio = montoRecibido - total;
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
+  document.getElementById('ventaFormError').style.display = 'none';
+
+  try {
+    const now = new Date();
+    const ventaData = {
+      clienteNombre, productoId, productoNombre, precioUnitario,
+      cantidad: cant, total, montoRecibido, cambio,
+      fecha: now.toISOString(), createdAt: now.toISOString(),
+    };
+    const ventaRef = await addDoc(collection(db, 'ventas'), ventaData);
+    await updateDoc(doc(db, 'productos', productoId), { stock: stockActual - cant });
+    await generarTicketVentaPDF(ventaRef.id, ventaData);
+    cerrarModal();
+    cargarVentas();
+  } catch (e) {
+    console.error('Error guardando venta', e);
+    const el = document.getElementById('ventaFormError');
+    if (el) { el.textContent = 'Error al guardar la venta. Intenta de nuevo.'; el.style.display = 'block'; }
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-receipt"></i> Guardar y Generar Ticket';
+  }
+}
+
+async function generarTicketVentaPDF(ventaId, venta) {
+  try {
+    const { jsPDF } = window.jspdf;
+    const PW = 80;
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [PW, 160] });
+
+    const fechaObj = new Date(venta.fecha);
+    const fechaStr = fechaObj.toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' });
+    const horaStr  = fechaObj.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+
+    // Header block
+    doc.setFillColor(53, 70, 42);
+    doc.rect(0, 0, PW, 23, 'F');
+    doc.setTextColor(193, 164, 77);
+    doc.setFontSize(13); doc.setFont(undefined, 'bold');
+    doc.text('Hotel Casa', PW / 2, 8,  { align: 'center' });
+    doc.text('Usumacinta', PW / 2, 14, { align: 'center' });
+    doc.setFontSize(7); doc.setTextColor(190, 220, 190);
+    doc.text('Emiliano Zapata Centro, Tabasco — Tel: 934 111 8398', PW / 2, 20, { align: 'center' });
+
+    let y = 28;
+    doc.setTextColor(0, 0, 0);
+
+    // Ticket title & ID
+    doc.setFontSize(10); doc.setFont(undefined, 'bold');
+    doc.text('TICKET DE VENTA', PW / 2, y, { align: 'center' }); y += 4;
+    doc.setFontSize(7); doc.setFont(undefined, 'normal'); doc.setTextColor(100, 100, 100);
+    doc.text(`Folio: #${ventaId.substring(0, 10).toUpperCase()}`, PW / 2, y, { align: 'center' }); y += 3;
+    doc.text(`${fechaStr}   ${horaStr}`, PW / 2, y, { align: 'center' }); y += 5;
+
+    doc.setDrawColor(200, 200, 200);
+    doc.line(5, y, PW - 5, y); y += 5;
+
+    // Customer
+    doc.setTextColor(0, 0, 0);
+    doc.setFontSize(8); doc.setFont(undefined, 'bold');
+    doc.text('CLIENTE:', 5, y); y += 4;
+    doc.setFont(undefined, 'normal');
+    doc.text(venta.clienteNombre.substring(0, 38), 5, y); y += 6;
+
+    doc.line(5, y, PW - 5, y); y += 5;
+
+    // Product detail
+    doc.setFont(undefined, 'bold');
+    doc.text('PRODUCTO:', 5, y); y += 4;
+    doc.setFont(undefined, 'normal');
+    const nombreLines = doc.splitTextToSize(venta.productoNombre, PW - 10);
+    doc.text(nombreLines, 5, y); y += nombreLines.length * 4 + 1;
+    doc.text(`${venta.cantidad} unidad(es)  x  $${venta.precioUnitario.toFixed(2)} c/u`, 5, y); y += 6;
+
+    doc.line(5, y, PW - 5, y); y += 5;
+
+    // Totals table
+    doc.setFontSize(9); doc.setFont(undefined, 'bold');
+    doc.text('TOTAL:', 5, y);
+    doc.text(`$${venta.total.toFixed(2)}`, PW - 5, y, { align: 'right' }); y += 5;
+    doc.setFont(undefined, 'normal'); doc.setFontSize(8);
+    doc.text('Recibido:', 5, y);
+    doc.text(`$${venta.montoRecibido.toFixed(2)}`, PW - 5, y, { align: 'right' }); y += 4;
+    doc.setFont(undefined, 'bold');
+    doc.text('Cambio:', 5, y);
+    doc.text(`$${venta.cambio.toFixed(2)}`, PW - 5, y, { align: 'right' }); y += 8;
+
+    doc.line(5, y, PW - 5, y); y += 6;
+
+    // Footer
+    doc.setFont(undefined, 'normal'); doc.setFontSize(8); doc.setTextColor(120, 120, 120);
+    doc.text('¡Gracias por su compra!', PW / 2, y, { align: 'center' }); y += 4;
+    doc.setFontSize(7);
+    doc.text('www.casausumacinta.com', PW / 2, y, { align: 'center' });
+
+    doc.save(`ticket-venta-${ventaId.substring(0, 8)}.pdf`);
+  } catch (e) {
+    console.error('Error generando PDF de venta', e);
+    alert('Venta guardada correctamente. No se pudo generar el PDF.');
+  }
+}
+
+// ---- Historial de Ventas ----
+let _historialVentas = [];
+
+async function mostrarHistorialVentas() {
+  const modal = document.getElementById('modal');
+  const modalContent = document.getElementById('modalContent');
+  modalContent.innerHTML = `
+    <div class="modal-header">
+      <h2><i class="fas fa-clock-rotate-left"></i> Historial de Ventas</h2>
+      <button class="close-modal" onclick="cerrarModal()" aria-label="Cerrar">&times;</button>
+    </div>
+    <div class="modal-body" style="text-align:center;padding:40px;">
+      <i class="fas fa-spinner fa-spin" style="font-size:28px;color:#C1A44D;"></i>
+      <p style="margin-top:12px;color:#6b7280;">Cargando historial...</p>
+    </div>`;
+  modal.classList.add('active');
+
+  try {
+    const snap = await getDocs(query(collection(db, 'ventas'), orderBy('createdAt', 'desc'), limit(200)));
+    _historialVentas = [];
+    snap.forEach(d => _historialVentas.push({ id: d.id, ...d.data() }));
+  } catch (e) {
+    console.error('Error cargando historial de ventas', e);
+    _historialVentas = [];
+  }
+
+  let rowsHtml = '';
+  if (_historialVentas.length === 0) {
+    rowsHtml = `<tr><td colspan="6" style="text-align:center;padding:36px;color:#9ca3af;"><i class="fas fa-receipt" style="font-size:28px;display:block;margin-bottom:10px;"></i>No hay ventas registradas aún.</td></tr>`;
+  } else {
+    _historialVentas.forEach((v, idx) => {
+      const fechaObj = new Date(v.fecha || v.createdAt);
+      const fechaStr = fechaObj.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' });
+      const horaStr  = fechaObj.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+      rowsHtml += `
+        <tr>
+          <td style="font-size:12px;color:#6b7280;white-space:nowrap;">${fechaStr}<br><span style="color:#9ca3af;">${horaStr}</span></td>
+          <td style="font-weight:600;">${v.clienteNombre}</td>
+          <td style="font-size:13px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${v.productoNombre}</td>
+          <td style="text-align:center;font-weight:600;">${v.cantidad}</td>
+          <td style="font-weight:700;color:#C1A44D;white-space:nowrap;">$${Number(v.total).toFixed(2)}</td>
+          <td>
+            <button class="btn-action btn-view" onclick="verTicketHistorial(${idx})" title="Descargar ticket PDF">
+              <i class="fas fa-file-pdf"></i> Ticket
+            </button>
+          </td>
+        </tr>`;
+    });
+  }
+
+  const totalGeneral = _historialVentas.reduce((sum, v) => sum + (Number(v.total) || 0), 0);
+
+  modalContent.innerHTML = `
+    <div class="modal-header">
+      <h2><i class="fas fa-clock-rotate-left"></i> Historial de Ventas</h2>
+      <button class="close-modal" onclick="cerrarModal()" aria-label="Cerrar">&times;</button>
+    </div>
+    <div class="modal-body" style="padding:0;">
+      ${ _historialVentas.length > 0 ? `
+      <div style="padding:12px 20px;background:#f8faf7;border-bottom:1px solid #e5e7eb;display:flex;gap:24px;font-size:13px;flex-wrap:wrap;">
+        <span><i class="fas fa-receipt" style="color:#C1A44D;"></i> <strong>${_historialVentas.length}</strong> venta(s) registrada(s)</span>
+        <span><i class="fas fa-peso-sign" style="color:#5FAB67;"></i> Total acumulado: <strong style="color:#35462A;">$${totalGeneral.toFixed(2)}</strong></span>
+      </div>` : '' }
+      <div style="overflow-x:auto;max-height:55vh;">
+        <table class="users-table" style="min-width:520px;">
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>Cliente</th>
+              <th>Producto</th>
+              <th style="text-align:center;">Cant.</th>
+              <th>Total</th>
+              <th>Ticket</th>
+            </tr>
+          </thead>
+          <tbody>${rowsHtml}</tbody>
+        </table>
+      </div>
+    </div>
+    <div style="padding:14px 24px 18px;display:flex;justify-content:flex-end;border-top:1px solid #f3f4f6;">
+      <button class="btn-action btn-view" onclick="cerrarModal()">Cerrar</button>
+    </div>`;
+}
+
+function verTicketHistorial(idx) {
+  const venta = _historialVentas[idx];
+  if (venta) generarTicketVentaPDF(venta.id, venta);
+}
+// ============================================================
+
 function cerrarModal() {
   document.getElementById('modal').classList.remove('active');
 }
@@ -1660,7 +2305,9 @@ async function cargarCaja() {
     
     // Obtener información de caja del día
     const hoy = new Date();
-    const hoyString = hoy.toISOString().split('T')[0]; // YYYY-MM-DD
+    const _padC = n => String(n).padStart(2, '0');
+    // IMPORTANTE: usar fecha LOCAL para evitar desfase UTC (bug después de las 6 PM)
+    const hoyString = `${hoy.getFullYear()}-${_padC(hoy.getMonth()+1)}-${_padC(hoy.getDate())}`;
     
     let cajaAbierta = null;
     let cajaCerrada = null;
@@ -1672,13 +2319,14 @@ async function cargarCaja() {
       
       cajasSnap.forEach(doc => {
         const data = doc.data();
-        const fechaApertura = data.fechaApertura;
         let fechaString = '';
-        
-        if (fechaApertura && fechaApertura.toDate) {
-          fechaString = fechaApertura.toDate().toISOString().split('T')[0];
-        } else if (fechaApertura instanceof Date) {
-          fechaString = fechaApertura.toISOString().split('T')[0];
+        // Preferir campo fechaYMD (string local confiable); si no, derivar de la fecha
+        if (data.fechaYMD) {
+          fechaString = data.fechaYMD;
+        } else {
+          const fa = data.fechaApertura;
+          const d = fa && fa.toDate ? fa.toDate() : (fa instanceof Date ? fa : null);
+          if (d) fechaString = `${d.getFullYear()}-${_padC(d.getMonth()+1)}-${_padC(d.getDate())}`;
         }
         
         if (fechaString === hoyString) {
@@ -1782,11 +2430,12 @@ async function cargarCaja() {
         </div>
       `;
       
-      // Establecer fecha actual por defecto
+      // Mostrar fecha actual (solo lectura, no editable)
       setTimeout(() => {
-        const hoyISO = new Date().toISOString().split('T')[0];
-        const fechaInput = document.getElementById('fechaAperturaCaja');
-        if (fechaInput) fechaInput.value = hoyISO;
+        const n = new Date();
+        const meses = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+        const display = document.getElementById('fechaAperturaCajaDisplay');
+        if (display) display.value = `${n.getDate()} de ${meses[n.getMonth()]} de ${n.getFullYear()}`;
       }, 100);
     }
   } catch (error) {
@@ -1802,18 +2451,20 @@ async function cargarCaja() {
 }
 
 async function abrirCaja() {
-  const fechaApertura = document.getElementById('fechaAperturaCaja')?.value;
-  const quienAbre = document.getElementById('quienAbreCaja')?.value;
+  const quienAbre = document.getElementById('quienAbreCaja')?.value?.trim();
   const saldoInicial = parseFloat(document.getElementById('saldoInicial')?.value || 0);
   
-  if (!fechaApertura || !quienAbre) {
-    alert('Completa todos los campos');
+  if (!quienAbre) {
+    alert('Ingresa el nombre de quien abre la caja');
     return;
   }
   
+  // Siempre usar la fecha LOCAL de hoy — el usuario no puede cambiarla
+  const _hoyAbre = new Date();
+  const _padAb = n => String(n).padStart(2, '0');
+  const fechaString = `${_hoyAbre.getFullYear()}-${_padAb(_hoyAbre.getMonth()+1)}-${_padAb(_hoyAbre.getDate())}`;
+  
   try {
-    const fechaString = fechaApertura; // YYYY-MM-DD
-    
     // Verificar que no haya otra caja abierta o cerrada en la misma fecha
     let yaExisteAbierta = false;
     let yaExisteCerrada = false;
@@ -1821,15 +2472,14 @@ async function abrirCaja() {
       const cajasSnap = await getDocs(collection(db, 'cajas'));
       cajasSnap.forEach(doc => {
         const data = doc.data();
-        const fechaApert = data.fechaApertura;
         let fechaApertString = '';
-        
-        if (fechaApert && fechaApert.toDate) {
-          fechaApertString = fechaApert.toDate().toISOString().split('T')[0];
-        } else if (fechaApert instanceof Date) {
-          fechaApertString = fechaApert.toISOString().split('T')[0];
+        if (data.fechaYMD) {
+          fechaApertString = data.fechaYMD;
+        } else {
+          const fa = data.fechaApertura;
+          const d = fa && fa.toDate ? fa.toDate() : (fa instanceof Date ? fa : null);
+          if (d) fechaApertString = `${d.getFullYear()}-${_padAb(d.getMonth()+1)}-${_padAb(d.getDate())}`;
         }
-        
         if (fechaApertString === fechaString) {
           if (data.estado === 'Abierta') {
             yaExisteAbierta = true;
@@ -1856,14 +2506,14 @@ async function abrirCaja() {
     const ahora = new Date();
     const horaApertura = ahora.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     
-    // Guardar caja - usar Timestamp de Firebase
-    const fecha = new Date(fechaApertura);
-    fecha.setHours(0, 0, 0, 0);
+    // Fecha al inicio del día local (sin depender del input)
+    const fecha = new Date(_hoyAbre.getFullYear(), _hoyAbre.getMonth(), _hoyAbre.getDate(), 0, 0, 0, 0);
     
     const cajaData = {
       fechaApertura: fecha,
+      fechaYMD: fechaString,
       horaApertura: horaApertura,
-      abiertoPor: quienAbre.trim(),
+      abiertoPor: quienAbre,
       saldoInicial: saldoInicial,
       estado: 'Abierta',
       totalIngresosPrevisto: 0,
@@ -1903,7 +2553,8 @@ async function cerrarCaja() {
   try {
     // Obtener caja abierta del día
     const hoy = new Date();
-    const hoyString = hoy.toISOString().split('T')[0];
+    const _padCj = n => String(n).padStart(2, '0');
+    const hoyString = `${hoy.getFullYear()}-${_padCj(hoy.getMonth()+1)}-${_padCj(hoy.getDate())}`;
     
     let cajaAbiertaId = null;
     let cajaAbiertaData = null;
@@ -1912,15 +2563,14 @@ async function cerrarCaja() {
       const cajasAbiertas = await getDocs(query(collection(db, 'cajas'), where('estado', '==', 'Abierta')));
       cajasAbiertas.forEach(doc => {
         const data = doc.data();
-        const fechaApert = data.fechaApertura;
         let fechaApertString = '';
-        
-        if (fechaApert && fechaApert.toDate) {
-          fechaApertString = fechaApert.toDate().toISOString().split('T')[0];
-        } else if (fechaApert instanceof Date) {
-          fechaApertString = fechaApert.toISOString().split('T')[0];
+        if (data.fechaYMD) {
+          fechaApertString = data.fechaYMD;
+        } else {
+          const fa = data.fechaApertura;
+          const d = fa && fa.toDate ? fa.toDate() : (fa instanceof Date ? fa : null);
+          if (d) fechaApertString = `${d.getFullYear()}-${_padCj(d.getMonth()+1)}-${_padCj(d.getDate())}`;
         }
-        
         if (fechaApertString === hoyString) {
           cajaAbiertaId = doc.id;
           cajaAbiertaData = data;
@@ -2011,11 +2661,21 @@ async function calcularTotalIngresosDia() {
           }
         }
       });
+
+      // Sumar ventas del día
+      const ventasSnap = await getDocs(collection(db, 'ventas'));
+      ventasSnap.forEach(doc => {
+        const v = doc.data();
+        const fechaV = new Date(v.fecha || v.createdAt || 0).getTime();
+        if (fechaV >= hoyMs && fechaV < mananaMs) {
+          totalIngresos += Number(v.total) || 0;
+        }
+      });
     } catch (e) {
       console.warn('Advertencia calculando ingresos:', e.message);
     }
     
-    // Retornar el total de ingresos de reservas (que es el que se debe mostrar)
+    // Retornar el total combinado: reservas + ventas
     return totalIngresos;
   } catch (error) {
     console.error('Error calculando ingresos:', error);
@@ -2026,24 +2686,22 @@ async function calcularTotalIngresosDia() {
 async function generarReportePDFDiario() {
   try {
     const hoy = new Date();
-    const hoyString = hoy.toISOString().split('T')[0];
-    const fechaFormato = hoy.toLocaleDateString('es-MX');
+    const _padR = n => String(n).padStart(2, '0');
+    const hoyString = `${hoy.getFullYear()}-${_padR(hoy.getMonth()+1)}-${_padR(hoy.getDate())}`;
+    const fechaFormato = hoy.toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' });
     
     // Obtener información de caja
     let cajaInfo = null;
     try {
-      const cajasSnap = await getDocs(query(collection(db, 'cajas'), where('estado', '==', 'Abierta')));
+      const cajasSnap = await getDocs(collection(db, 'cajas'));
       cajasSnap.forEach(doc => {
         const data = doc.data();
-        const fechaApert = data.fechaApertura;
-        let fechaApertString = '';
-        
-        if (fechaApert && fechaApert.toDate) {
-          fechaApertString = fechaApert.toDate().toISOString().split('T')[0];
-        } else if (fechaApert instanceof Date) {
-          fechaApertString = fechaApert.toISOString().split('T')[0];
+        let fechaApertString = data.fechaYMD || '';
+        if (!fechaApertString) {
+          const fa = data.fechaApertura;
+          const d = fa && fa.toDate ? fa.toDate() : (fa instanceof Date ? fa : null);
+          if (d) fechaApertString = `${d.getFullYear()}-${_padR(d.getMonth()+1)}-${_padR(d.getDate())}`;
         }
-        
         if (fechaApertString === hoyString) {
           cajaInfo = data;
         }
@@ -2102,6 +2760,23 @@ async function generarReportePDFDiario() {
     
     const totalIngresos = await calcularTotalIngresosDia();
     
+    // Obtener ventas del día
+    let ventasHoy = [];
+    let totalVentasHoy = 0;
+    try {
+      const ventasSnap = await getDocs(collection(db, 'ventas'));
+      ventasSnap.forEach(docVenta => {
+        const v = docVenta.data();
+        const fechaV = new Date(v.fecha || v.createdAt || 0).getTime();
+        if (fechaV >= hoyMs && fechaV < mananaMs) {
+          ventasHoy.push(v);
+          totalVentasHoy += Number(v.total) || 0;
+        }
+      });
+    } catch (e) {
+      console.warn('Advertencia obteniendo ventas del día:', e.message);
+    }
+    
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
     
@@ -2146,12 +2821,22 @@ async function generarReportePDFDiario() {
     doc.text('RESUMEN DE INGRESOS', 20, yPos);
     yPos += 8;
     
-    // Total
+    // Desglose: reservas + ventas
+    doc.setFontSize(10);
+    doc.setFont(undefined, 'normal');
+    doc.text('Ingresos por Reservas:', 20, yPos);
+    doc.text(`$${totalIngresos.toFixed(2)}`, 190, yPos, { align: 'right' });
+    yPos += 5;
+    doc.text('Ingresos por Ventas:', 20, yPos);
+    doc.text(`$${totalVentasHoy.toFixed(2)}`, 190, yPos, { align: 'right' });
+    yPos += 7;
+    
+    // Total general
     doc.setFillColor(230, 245, 230);
     doc.rect(20, yPos - 5, 170, 10, 'F');
     doc.setFontSize(11);
     doc.setFont(undefined, 'bold');
-    doc.text(`TOTAL DE INGRESOS: $${totalIngresos.toFixed(2)}`, 20, yPos + 2);
+    doc.text(`TOTAL GENERAL: $${(totalIngresos + totalVentasHoy).toFixed(2)}`, 20, yPos + 2);
     yPos += 15;
     
     // Detalle de reservas
@@ -2240,6 +2925,50 @@ async function generarReportePDFDiario() {
       // Total movimientos
       doc.setFont(undefined, 'bold');
       doc.text(`Total en Efectivo: $${totalMovimientos.toFixed(2)}`, 20, yPos + 3);
+      yPos += 12;
+    }
+    
+    // VENTAS DEL DÍA
+    yPos += 5;
+    if (yPos > 250) { doc.addPage(); yPos = 20; }
+    doc.setTextColor(0, 0, 0);
+    doc.setFontSize(12);
+    doc.setFont(undefined, 'bold');
+    doc.text('VENTAS DEL DÍA', 20, yPos);
+    yPos += 7;
+    
+    if (ventasHoy.length > 0) {
+      doc.setFontSize(8);
+      doc.setFont(undefined, 'bold');
+      doc.setFillColor(225, 245, 225);
+      doc.rect(20, yPos - 4, 170, 7, 'F');
+      doc.text('Cliente', 22, yPos);
+      doc.text('Producto', 66, yPos);
+      doc.text('Cant.', 128, yPos);
+      doc.text('P. Unit.', 146, yPos);
+      doc.text('Total', 172, yPos);
+      yPos += 6;
+      doc.setFont(undefined, 'normal');
+      ventasHoy.forEach(v => {
+        if (yPos > 270) { doc.addPage(); yPos = 20; }
+        doc.text((v.clienteNombre || '—').substring(0, 22), 22, yPos);
+        doc.text((v.productoNombre || '—').substring(0, 30), 66, yPos);
+        doc.text(String(v.cantidad || 0), 130, yPos);
+        doc.text(`$${Number(v.precioUnitario || 0).toFixed(2)}`, 146, yPos);
+        doc.text(`$${Number(v.total || 0).toFixed(2)}`, 172, yPos);
+        yPos += 5;
+      });
+      doc.setDrawColor(180, 180, 180);
+      doc.line(20, yPos, 190, yPos);
+      yPos += 5;
+      doc.setFont(undefined, 'bold');
+      doc.setFontSize(9);
+      doc.text(`Total en Ventas: $${totalVentasHoy.toFixed(2)}`, 20, yPos);
+      yPos += 6;
+    } else {
+      doc.setFontSize(10);
+      doc.setFont(undefined, 'normal');
+      doc.text('No hay ventas registradas para hoy', 20, yPos);
     }
     
     // Pie de página
@@ -2604,6 +3333,18 @@ window.generarTicketPDF = generarTicketPDF;
 window.cargarTickets = cargarTickets;
 window.descargarTicket = descargarTicket;
 window.filtrarHuespedes = filtrarHuespedes;
+window.cargarVentas = cargarVentas;
+window.mostrarFormularioProducto = mostrarFormularioProducto;
+window.guardarProducto = guardarProducto;
+window.eliminarProducto = eliminarProducto;
+window.previewProductoImg = previewProductoImg;
+window.mostrarFormularioVenta = mostrarFormularioVenta;
+window.actualizarInfoProductoVenta = actualizarInfoProductoVenta;
+window.calcularTotalVenta = calcularTotalVenta;
+window.calcularCambioVenta = calcularCambioVenta;
+window.guardarVenta = guardarVenta;
+window.mostrarHistorialVentas = mostrarHistorialVentas;
+window.verTicketHistorial = verTicketHistorial;
 
 function cerrarSesion() {
   if (confirm('¿Deseas cerrar sesión?')) {

@@ -4,21 +4,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Dashboard - Hotel Casausumacinta</title>
+  <link rel="icon" type="image/png" href="LOGO/LOGO.png" />
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
-    .dashboard-stats {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 20px;
-      margin-bottom: 30px;
-    }
-
     body.dashboard-body {
-      display: block;
-      justify-content: normal;
-      align-items: normal;
-      min-height: 100vh;
-      background: #f5f5f5;
+      background: #f0f2f5;
     }
 
     .dashboard-container {
@@ -26,171 +17,386 @@
       min-height: 100vh;
     }
 
-    .main-content {
-      margin-left: 250px;
-      padding: 20px 15px;
-      flex: 1;
-      overflow-y: auto;
+    /* === Stats Grid === */
+    .dashboard-stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 20px;
+      margin-bottom: 28px;
     }
 
     .stat-card {
       background: white;
-      padding: 20px;
-      border-radius: 8px;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-      text-align: center;
-      border-left: 4px solid #C1A44D;
+      padding: 20px 22px;
+      border-radius: 14px;
+      box-shadow: 0 2px 14px rgba(0,0,0,0.07);
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+      border: 1px solid rgba(0,0,0,0.05);
     }
 
-    .stat-card h3 {
-      color: #666;
-      font-size: 14px;
-      margin-bottom: 10px;
+    .stat-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.11);
+    }
+
+    .stat-icon-wrap {
+      width: 54px;
+      height: 54px;
+      border-radius: 13px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      flex-shrink: 0;
+    }
+
+    .stat-icon-gold  { background: rgba(193,164,77,0.14);  color: #C1A44D; }
+    .stat-icon-green { background: rgba(95,171,103,0.14);  color: #3d9947; }
+    .stat-icon-blue  { background: rgba(52,152,219,0.14);  color: #3498db; }
+    .stat-icon-brown { background: rgba(150,98,55,0.14);   color: #966237; }
+
+    .stat-info h3 {
+      color: #6b7280;
+      font-size: 11px;
+      font-weight: 600;
+      margin-bottom: 5px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
     }
 
     .stat-number {
-      font-size: 32px;
-      font-weight: bold;
-      color: #C1A44D;
+      font-size: 30px;
+      font-weight: 800;
+      color: #1f2937;
+      line-height: 1;
     }
 
+    /* === Buttons === */
     .btn-primary {
-      padding: 12px 24px;
-      background: #C1A44D;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      padding: 10px 20px;
+      background: linear-gradient(135deg, #C1A44D, #966237);
       color: white;
       border: none;
-      border-radius: 5px;
+      border-radius: 8px;
       cursor: pointer;
       font-weight: 600;
-      transition: all 0.3s;
+      font-size: 14px;
+      transition: all 0.25s ease;
+      text-decoration: none;
+      box-shadow: 0 4px 12px rgba(193,164,77,0.28);
     }
 
     .btn-primary:hover {
-      background: #966237;
       transform: translateY(-2px);
+      box-shadow: 0 7px 18px rgba(193,164,77,0.38);
     }
 
+    /* === Welcome Banner === */
     .welcome-section {
       background: linear-gradient(135deg, #35462A 0%, #5FAB67 100%);
       color: white;
-      padding: 30px;
-      border-radius: 8px;
-      margin-bottom: 30px;
+      padding: 32px 36px;
+      border-radius: 16px;
+      margin-bottom: 28px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .welcome-section::before {
+      content: '';
+      position: absolute;
+      top: -70px; right: -70px;
+      width: 240px; height: 240px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.05);
+      pointer-events: none;
+    }
+
+    .welcome-section::after {
+      content: '';
+      position: absolute;
+      bottom: -90px; right: 100px;
+      width: 300px; height: 300px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.04);
+      pointer-events: none;
     }
 
     .welcome-section h1 {
-      margin-bottom: 10px;
-      font-size: 28px;
+      margin-bottom: 6px;
+      font-size: 26px;
+      font-weight: 700;
+      position: relative;
     }
 
-    .welcome-section p {
-      font-size: 16px;
-      opacity: 0.9;
+    .welcome-section > p {
+      font-size: 14px;
+      opacity: 0.8;
+      position: relative;
+      margin: 0;
     }
 
     .user-info {
-      background: white;
-      padding: 15px;
-      border-radius: 5px;
-      margin-top: 15px;
+      background: rgba(255,255,255,0.12);
+      border: 1px solid rgba(255,255,255,0.18);
+      padding: 13px 18px;
+      border-radius: 10px;
+      margin-top: 20px;
       display: flex;
       justify-content: space-between;
       align-items: center;
-      color: #333;
+      color: rgba(255,255,255,0.95);
+      position: relative;
+      font-size: 14px;
     }
 
+    /* === Section header === */
     .section-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
       flex-wrap: wrap;
       gap: 12px;
+      margin-bottom: 18px;
     }
 
+    .section-header h2 { margin-bottom: 0 !important; }
+
+    /* === Filters === */
     .room-actions {
       display: grid;
       grid-template-columns: 1fr auto;
       gap: 10px;
-      margin-top: 15px;
+      margin-bottom: 16px;
     }
 
     .room-actions input,
     .room-actions select {
       width: 100%;
-      padding: 12px 14px;
-      border-radius: 6px;
-      border: 1px solid #ccc;
+      padding: 10px 14px;
+      border-radius: 8px;
+      border: 1px solid #e5e7eb;
       font-size: 14px;
+      background: #f9fafb;
+      transition: border-color 0.2s, background 0.2s;
     }
 
+    .room-actions input:focus,
+    .room-actions select:focus {
+      border-color: #C1A44D;
+      outline: none;
+      background: white;
+    }
+
+    /* === Status badges === */
     .status {
       font-weight: 700;
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-size: 12px;
     }
 
-    .status-disponible {
-      color: #27ae60;
-    }
+    .status-disponible   { color: #166534; background: #dcfce7; }
+    .status-ocupada      { color: #991b1b; background: #fee2e2; }
+    .status-mantenimiento{ color: #9a3412; background: #ffedd5; }
 
-    .status-ocupada {
-      color: #c0392b;
-    }
-
-    .status-mantenimiento {
-      color: #d35400;
-    }
-
+    /* === Activity log === */
     .activity-log {
-      background: white;
-      padding: 20px;
-      border-radius: 8px;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
     }
 
     .activity-item {
-      padding: 12px;
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      padding: 13px 16px;
+      background: #f8faf7;
+      border-radius: 10px;
+      border: 1px solid rgba(0,0,0,0.05);
       border-left: 3px solid #C1A44D;
-      margin-bottom: 10px;
-      background: #f8f9fa;
-      border-radius: 4px;
+      transition: background 0.2s;
     }
 
+    .activity-item:hover { background: #eef5ec; }
+
     .activity-time {
-      font-size: 12px;
-      color: #999;
+      font-size: 11.5px;
+      color: #9ca3af;
+      font-weight: 500;
     }
 
     .activity-description {
       font-weight: 600;
-      color: #333;
-      margin-top: 5px;
+      color: #374151;
+      font-size: 13.5px;
+      margin-top: 3px;
     }
 
     .empty-message {
       text-align: center;
       padding: 40px 20px;
-      color: #999;
+      color: #9ca3af;
+      font-size: 14px;
+    }
+
+    /* === Quick actions === */
+    .quick-actions-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 12px;
+      margin-top: 6px;
+    }
+
+    .quick-action-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 20px 12px;
+      background: #f6f9f5;
+      border: 1.5px solid #dde8db;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: all 0.22s ease;
+      color: #35462A;
+      font-weight: 600;
+      font-size: 13px;
+      text-decoration: none;
+      text-align: center;
+    }
+
+    .quick-action-btn i {
+      font-size: 24px;
+      color: #C1A44D;
+      transition: color 0.22s;
+    }
+
+    .quick-action-btn:hover {
+      background: #35462A;
+      border-color: #35462A;
+      color: white;
+      transform: translateY(-3px);
+      box-shadow: 0 8px 20px rgba(53,70,42,0.2);
+    }
+
+    .quick-action-btn:hover i { color: #C1A44D; }
+
+    /* === Ventas / Productos === */
+    .productos-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+      gap: 18px;
+    }
+
+    .producto-card {
+      background: #fff;
+      border-radius: 12px;
+      border: 1px solid rgba(0,0,0,0.07);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      transition: box-shadow 0.2s, transform 0.2s;
+    }
+
+    .producto-card:hover {
+      box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+      transform: translateY(-2px);
+    }
+
+    .producto-img-wrap {
+      height: 160px;
+      background: #f3f4f6;
+      overflow: hidden;
+    }
+
+    .producto-img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .producto-info {
+      padding: 14px 16px 8px;
+      flex: 1;
+    }
+
+    .producto-nombre {
+      font-size: 15px;
+      font-weight: 700;
+      color: #1f2937;
+      margin: 0 0 6px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .producto-precio {
+      font-size: 16px;
+      font-weight: 700;
+      color: #C1A44D;
+      margin: 0 0 4px;
+    }
+
+    .producto-stock {
+      font-size: 13px;
+      color: #6b7280;
+      margin: 0;
+    }
+
+    .producto-actions {
+      padding: 8px 14px 14px;
+      display: flex;
+      gap: 8px;
+    }
+
+    .img-upload-area {
+      width: 100%;
+      height: 180px;
+      border: 2px dashed #C1A44D;
+      border-radius: 10px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      background: #fffdf5;
+      transition: background 0.2s, border-color 0.2s;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .img-upload-area:hover {
+      background: #fff8e6;
+      border-color: #966237;
+    }
+
+    #imgUploadPlaceholder {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      color: #9ca3af;
+      font-size: 13px;
+      pointer-events: none;
+      text-align: center;
     }
 
     @media (max-width: 768px) {
-      .sidebar {
-        width: 100%;
-        height: auto;
-        position: relative;
-      }
-
-      .main-content {
-        margin-left: 0;
-      }
-
-      .dashboard-stats {
-        grid-template-columns: 1fr;
-      }
-
-      .user-info {
-        flex-direction: column;
-        gap: 10px;
-        align-items: flex-start;
-      }
+      .sidebar { width: 100%; height: auto; position: relative; }
+      .main-content { margin-left: 0; }
+      .dashboard-stats { grid-template-columns: 1fr; }
+      .user-info { flex-direction: column; gap: 10px; align-items: flex-start; }
     }
   </style>
 </head>
@@ -198,19 +404,28 @@
   <div class="dashboard-container">
     <!-- Sidebar -->
     <div class="sidebar">
-      <h2>📊 Dashboard</h2>
+      <div class="sidebar-brand">
+        <img src="LOGO/LOGO.png" alt="Logo Hotel Casa Usumacinta" style="height:42px;width:42px;object-fit:contain;border-radius:8px;flex-shrink:0;">
+        <div>
+          <div class="sidebar-title">Casa Usumacinta</div>
+          <div class="sidebar-subtitle">Panel de Gestión</div>
+        </div>
+      </div>
       <nav class="nav-menu">
-        <button class="nav-item active" data-section="inicio">🏠 Inicio</button>
-        <button class="nav-item" data-section="huespedes">🧳 Huéspedes</button>
-        <button class="nav-item" data-section="habitaciones">🛏️ Habitaciones</button>
-        <button class="nav-item" data-section="reservas">📅 Reservas</button>
-        <button class="nav-item" data-section="reportes">📈 Reportes</button>
-        <button class="nav-item" data-section="tickets">🎫 Tickets</button>
-        <button class="nav-item" data-section="caja">💰 Caja</button>
-        <a href="web/editar_pagina_principal.html" class="nav-item" style="text-align:left; display:block; padding:10px; border:none; background:none; cursor:pointer;">📝 Editar Página Principal</a>
-        <button class="nav-item" data-section="configuracion">⚙️ Configuración</button>
+        <button class="nav-item active" data-section="inicio"><i class="fas fa-house"></i> Inicio</button>
+        <button class="nav-item" data-section="huespedes"><i class="fas fa-users"></i> Huéspedes</button>
+        <button class="nav-item" data-section="habitaciones"><i class="fas fa-bed"></i> Habitaciones</button>
+        <button class="nav-item" data-section="ventas"><i class="fas fa-store"></i> Ventas</button>
+        <button class="nav-item" data-section="reservas"><i class="fas fa-calendar-check"></i> Reservas</button>
+        <button class="nav-item" data-section="reportes"><i class="fas fa-chart-line"></i> Reportes</button>
+        <button class="nav-item" data-section="tickets"><i class="fas fa-ticket"></i> Tickets</button>
+        <button class="nav-item" data-section="caja"><i class="fas fa-cash-register"></i> Caja</button>
+        <a href="web/editar_pagina_principal.html" class="nav-item"><i class="fas fa-pen-to-square"></i> Editar Sitio Web</a>
+        <button class="nav-item" data-section="configuracion"><i class="fas fa-gear"></i> Configuración</button>
       </nav>
-      <button class="nav-item btn-logout" onclick="cerrarSesion()" style="margin-top: auto; width: 100%; background: #e74c3c;">🚪 Cerrar Sesión</button>
+      <div class="sidebar-footer">
+        <button class="nav-item btn-logout" onclick="cerrarSesion()"><i class="fas fa-right-from-bracket"></i> Cerrar Sesión</button>
+      </div>
     </div>
 
     <!-- Main Content -->
@@ -218,8 +433,8 @@
       <!-- Sección Inicio -->
       <div id="inicio" class="content-section active">
         <div class="welcome-section">
-          <h1>👋 Bienvenido al Dashboard</h1>
-          <p>Sistema de Gestión del Hotel Casa Usumacinta</p>
+          <h1>Bienvenido al Dashboard</h1>
+          <p>Sistema de Gestión — Hotel Casa Usumacinta</p>
           <div class="user-info">
             <span id="usuarioInfo">Cargando información...</span>
             <span id="horaActual"></span>
@@ -229,37 +444,69 @@
         <!-- Estadísticas -->
         <div class="dashboard-stats">
           <div class="stat-card">
-            <h3>Total Usuarios</h3>
-            <div class="stat-number" id="totalUsuarios">0</div>
+            <div class="stat-icon-wrap stat-icon-blue">
+              <i class="fas fa-user-shield"></i>
+            </div>
+            <div class="stat-info">
+              <h3>Total Usuarios</h3>
+              <div class="stat-number" id="totalUsuarios">0</div>
+            </div>
           </div>
           <div class="stat-card">
-            <h3>Habitaciones Disponibles</h3>
-            <div class="stat-number" id="habitacionesDisponibles">0</div>
+            <div class="stat-icon-wrap stat-icon-green">
+              <i class="fas fa-bed"></i>
+            </div>
+            <div class="stat-info">
+              <h3>Habitaciones Disponibles</h3>
+              <div class="stat-number" id="habitacionesDisponibles">0</div>
+            </div>
           </div>
           <div class="stat-card">
-            <h3>Reservas Activas</h3>
-            <div class="stat-number" id="reservasActivas">0</div>
+            <div class="stat-icon-wrap stat-icon-gold">
+              <i class="fas fa-calendar-check"></i>
+            </div>
+            <div class="stat-info">
+              <h3>Reservas Activas</h3>
+              <div class="stat-number" id="reservasActivas">0</div>
+            </div>
           </div>
           <div class="stat-card">
-            <h3>Ingresos Hoy</h3>
-            <div class="stat-number" id="ingresosHoy">$0</div>
+            <div class="stat-icon-wrap stat-icon-brown">
+              <i class="fas fa-peso-sign"></i>
+            </div>
+            <div class="stat-info">
+              <h3>Ingresos Hoy</h3>
+              <div class="stat-number" id="ingresosHoy">$0</div>
+            </div>
           </div>
         </div>
 
         <!-- Acciones rápidas -->
         <div class="content-card">
-          <h2>🚀 Acciones Rápidas</h2>
-          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-top: 15px;">
-            <a href="agregarusuario.html" class="btn-primary">➕ Nuevo Usuario</a>
-            <button class="btn-primary" onclick="irASeccion('habitaciones')">➕ Nueva Habitación</button>
-            <button class="btn-primary" onclick="irASeccion('reservas')">📅 Nueva Reserva</button>
-            <button class="btn-primary" onclick="cargarReportes()">📊 Ver Reportes</button>
+          <h2><i class="fas fa-bolt" style="color:#C1A44D"></i> Acciones Rápidas</h2>
+          <div class="quick-actions-grid">
+            <a href="agregarusuario.html" class="quick-action-btn">
+              <i class="fas fa-user-plus"></i>
+              <span>Nuevo Usuario</span>
+            </a>
+            <button class="quick-action-btn" onclick="irASeccion('habitaciones')">
+              <i class="fas fa-bed"></i>
+              <span>Habitaciones</span>
+            </button>
+            <button class="quick-action-btn" onclick="irASeccion('reservas')">
+              <i class="fas fa-calendar-plus"></i>
+              <span>Nueva Reserva</span>
+            </button>
+            <button class="quick-action-btn" onclick="cargarReportes()">
+              <i class="fas fa-chart-bar"></i>
+              <span>Ver Reportes</span>
+            </button>
           </div>
         </div>
 
         <!-- Log de Actividad -->
         <div class="content-card">
-          <h2>📝 Actividad Reciente</h2>
+          <h2><i class="fas fa-clock-rotate-left" style="color:#C1A44D"></i> Actividad Reciente</h2>
           <div id="actividadReciente" class="activity-log">
             <div class="empty-message">Cargando actividad...</div>
           </div>
@@ -306,6 +553,27 @@
             </select>
           </div>
           <div id="tablaHabitaciones" style="margin-top: 20px;"></div>
+        </div>
+      </div>
+
+      <!-- Sección Ventas -->
+      <div id="ventas" class="content-section">
+        <div class="content-card">
+          <div class="section-header">
+            <h2><i class="fas fa-store" style="color:#C1A44D"></i> Gestión de Ventas</h2>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;">
+              <button class="btn-primary" onclick="mostrarHistorialVentas()" style="background:linear-gradient(135deg,#374151,#4b5563);">
+                <i class="fas fa-clock-rotate-left"></i> Historial
+              </button>
+              <button class="btn-primary" onclick="mostrarFormularioVenta()" style="background:linear-gradient(135deg,#35462A,#5FAB67);">
+                <i class="fas fa-receipt"></i> Vender
+              </button>
+              <button class="btn-primary" onclick="mostrarFormularioProducto()">
+                <i class="fas fa-plus"></i> Agregar Producto
+              </button>
+            </div>
+          </div>
+          <div id="productosGrid" style="margin-top: 4px;"></div>
         </div>
       </div>
 

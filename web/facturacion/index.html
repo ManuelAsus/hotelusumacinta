@@ -4,7 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Facturación - Hotel Casa Usumacinta</title>
+  <link rel="icon" type="image/png" href="../../LOGO/LOGO.png" />
   <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
 </head>
 <body>
   <div class="page-shell">
@@ -22,23 +24,70 @@
         <h2>Información de la reserva</h2>
         <p class="helper-text">Ingresa tus datos y genera tu factura de forma rápida, clara y segura.</p>
         <form id="invoiceForm">
+          <!-- Datos del huésped -->
+          <div class="form-section-title"><i class="fas fa-user"></i> Datos del huésped</div>
           <div class="field-grid">
             <label>
               <span>Nombre del cliente</span>
               <input type="text" id="cliente" name="cliente" placeholder="Ej. Ana López" required />
             </label>
             <label>
-              <span>RFC / Identificación</span>
-              <input type="text" id="rfc" name="rfc" placeholder="XAXX010101000" />
-            </label>
-            <label>
-              <span>Correo</span>
+              <span>Correo electrónico</span>
               <input type="email" id="correo" name="correo" placeholder="cliente@correo.com" required />
             </label>
             <label>
               <span>Teléfono</span>
               <input type="tel" id="telefono" name="telefono" placeholder="934 111 8398" required />
             </label>
+          </div>
+
+          <!-- Datos fiscales CFDI 4.0 -->
+          <div class="form-section-title"><i class="fas fa-file-invoice"></i> Datos fiscales (CFDI 4.0)</div>
+          <div class="field-grid">
+            <label class="full-width">
+              <span>Razón social / Nombre fiscal</span>
+              <input type="text" id="razonSocial" name="razonSocial" placeholder="Tal como aparece en el SAT (mayúsculas)" style="text-transform:uppercase" />
+            </label>
+            <label>
+              <span>RFC</span>
+              <input type="text" id="rfc" name="rfc" placeholder="XAXX010101000" maxlength="13" oninput="this.value=this.value.toUpperCase()" />
+            </label>
+            <label>
+              <span>Código Postal Fiscal</span>
+              <input type="text" id="cpFiscal" name="cpFiscal" placeholder="Ej. 86992" maxlength="5" pattern="[0-9]{5}" inputmode="numeric" />
+            </label>
+            <label class="full-width">
+              <span>Régimen Fiscal</span>
+              <select id="regimenFiscal" name="regimenFiscal">
+                <option value="">— Selecciona régimen —</option>
+                <option value="601 - General de Ley Personas Morales">601 - General de Ley Personas Morales</option>
+                <option value="603 - Personas Morales con Fines no Lucrativos">603 - Personas Morales con Fines no Lucrativos</option>
+                <option value="605 - Sueldos y Salarios e Ingresos Asimilados">605 - Sueldos y Salarios e Ingresos Asimilados</option>
+                <option value="606 - Arrendamiento">606 - Arrendamiento</option>
+                <option value="608 - Demás ingresos">608 - Demás ingresos</option>
+                <option value="612 - Personas Físicas con Actividades Empresariales y Profesionales">612 - Personas Físicas con Act. Empresariales y Profesionales</option>
+                <option value="616 - Sin obligaciones fiscales">616 - Sin obligaciones fiscales</option>
+                <option value="621 - Incorporación Fiscal">621 - Incorporación Fiscal</option>
+                <option value="626 - Régimen Simplificado de Confianza (RESICO)">626 - Régimen Simplificado de Confianza (RESICO)</option>
+              </select>
+            </label>
+            <label class="full-width">
+              <span>Uso de CFDI</span>
+              <select id="usoCFDI" name="usoCFDI">
+                <option value="">— Selecciona uso —</option>
+                <option value="G01 - Adquisición de mercancias">G01 - Adquisición de mercancias</option>
+                <option value="G03 - Gastos en general" selected>G03 - Gastos en general</option>
+                <option value="D01 - Honorarios médicos, dentales y gastos hospitalarios">D01 - Honorarios médicos y gastos hospitalarios</option>
+                <option value="D10 - Pagos por servicios educativos (colegiaturas)">D10 - Pagos por servicios educativos</option>
+                <option value="S01 - Sin efectos fiscales">S01 - Sin efectos fiscales</option>
+                <option value="CP01 - Pagos">CP01 - Pagos</option>
+              </select>
+            </label>
+          </div>
+
+          <!-- Datos de la estancia -->
+          <div class="form-section-title"><i class="fas fa-bed"></i> Datos de la estancia</div>
+          <div class="field-grid">
             <label>
               <span>Habitación</span>
               <select id="habitacion" name="habitacion" required>
@@ -60,9 +109,9 @@
               <span>Forma de pago</span>
               <select id="pago" name="pago">
                 <option value="Efectivo">Efectivo</option>
-                <option value="Transferencia">Transferencia</option>
-                <option value="Tarjeta">Tarjeta</option>
-                <option value="Crédito">Crédito</option>
+                <option value="Transferencia electrónica">Transferencia electrónica</option>
+                <option value="Tarjeta de débito">Tarjeta de débito</option>
+                <option value="Tarjeta de crédito">Tarjeta de crédito</option>
               </select>
             </label>
             <label>
@@ -117,10 +166,14 @@
 
           <div class="invoice-meta">
             <div class="client-block">
-              <h4>Datos del cliente</h4>
-              <p id="previewCliente">Sin datos</p>
-              <p id="previewContacto">Correo y teléfono aparecerán aquí</p>
-              <p id="previewRfc">RFC: --</p>
+              <h4>Datos del receptor</h4>
+              <p id="previewCliente" style="font-weight:700;margin:0 0 2px;">Sin datos</p>
+              <p id="previewRazonSocial" style="font-size:12px;color:#555;margin:2px 0;">Razón Social: --</p>
+              <p id="previewContacto" style="font-size:12px;color:#666;margin:2px 0;">Correo y teléfono aparecerán aquí</p>
+              <p id="previewRfc" style="font-size:12px;margin:2px 0;">RFC: --</p>
+              <p id="previewCpFiscal" style="font-size:12px;margin:2px 0;">C.P. Fiscal: --</p>
+              <p id="previewRegimenFiscal" style="font-size:12px;margin:2px 0;">Régimen: --</p>
+              <p id="previewUsoCFDI" style="font-size:12px;margin:2px 0;">Uso CFDI: --</p>
             </div>
             <div class="invoice-details">
               <div><span>Folio</span><strong id="previewFolio">--</strong></div>

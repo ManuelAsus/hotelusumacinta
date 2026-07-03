@@ -27,6 +27,10 @@ const previewFolioEl = document.getElementById('previewFolio');
 const previewPagoEl = document.getElementById('previewPago');
 const previewFechaEl = document.getElementById('previewFecha');
 const previewObservacionesEl = document.getElementById('previewObservaciones');
+const previewRazonSocialEl  = document.getElementById('previewRazonSocial');
+const previewCpFiscalEl     = document.getElementById('previewCpFiscal');
+const previewRegimenFiscalEl = document.getElementById('previewRegimenFiscal');
+const previewUsoCFDIEl      = document.getElementById('previewUsoCFDI');
 const downloadBtn = document.getElementById('downloadBtn');
 const resetBtn = document.getElementById('resetBtn');
 
@@ -68,26 +72,36 @@ function buildInvoiceData(formData) {
 }
 
 function renderInvoice(data, formData) {
-  const cliente = formData.get('cliente') || 'Sin nombre';
-  const correo = formData.get('correo') || 'Sin correo';
-  const telefono = formData.get('telefono') || 'Sin teléfono';
-  const rfc = document.getElementById('rfc').value || 'RFC: --';
-  const folio = document.getElementById('folio').value || 'Sin folio';
-  const pago = document.getElementById('pago').value || 'Sin forma de pago';
+  const cliente      = formData.get('cliente')  || 'Sin nombre';
+  const correo       = formData.get('correo')   || 'Sin correo';
+  const telefono     = formData.get('telefono') || 'Sin teléfono';
+  const rfc          = (document.getElementById('rfc').value || '').toUpperCase() || '—';
+  const razonSocial  = (document.getElementById('razonSocial')?.value  || '').toUpperCase() || '—';
+  const cpFiscal     = document.getElementById('cpFiscal')?.value      || '—';
+  const regimenFiscal = document.getElementById('regimenFiscal')?.value || '—';
+  const usoCFDI      = document.getElementById('usoCFDI')?.value       || '—';
+  const folio        = document.getElementById('folio').value          || 'Sin folio';
+  const pago         = document.getElementById('pago').value           || 'Sin forma de pago';
   const fechaEmision = document.getElementById('fechaEmision').value;
   const observaciones = document.getElementById('observaciones').value || 'Sin observaciones.';
-  const invoiceNumber = folio || `FAC-${new Date().toISOString().slice(0,10).replace(/-/g, '')}-${Math.floor(100 + Math.random() * 900)}`;
-  const invoiceDate = fechaEmision ? new Date(fechaEmision).toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' }) : new Date().toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  const invoiceNumber = folio || `FAC-${new Date().toISOString().slice(0,10).replace(/-/g,'')}-${Math.floor(100+Math.random()*900)}`;
+  const invoiceDate   = fechaEmision
+    ? new Date(fechaEmision + 'T12:00:00').toLocaleDateString('es-MX', { day:'2-digit', month:'2-digit', year:'numeric' })
+    : new Date().toLocaleDateString('es-MX', { day:'2-digit', month:'2-digit', year:'numeric' });
 
-  invoiceTitleEl.textContent = `Factura ${invoiceNumber}`;
-  invoiceNumberEl.textContent = `Factura: ${invoiceNumber}`;
-  invoiceDateEl.textContent = `Fecha: ${invoiceDate}`;
-  previewClienteEl.textContent = cliente;
+  invoiceTitleEl.textContent    = `Factura ${invoiceNumber}`;
+  invoiceNumberEl.textContent   = `Factura: ${invoiceNumber}`;
+  invoiceDateEl.textContent     = `Fecha: ${invoiceDate}`;
+  previewClienteEl.textContent  = cliente;
   previewContactoEl.textContent = `${correo} • ${telefono}`;
-  previewRfcEl.textContent = `RFC: ${rfc}`;
-  previewFolioEl.textContent = folio;
-  previewPagoEl.textContent = pago;
-  previewFechaEl.textContent = invoiceDate;
+  previewRfcEl.textContent      = `RFC: ${rfc}`;
+  if (previewRazonSocialEl)   previewRazonSocialEl.textContent   = `Razón Social: ${razonSocial}`;
+  if (previewCpFiscalEl)      previewCpFiscalEl.textContent      = `C.P. Fiscal: ${cpFiscal}`;
+  if (previewRegimenFiscalEl) previewRegimenFiscalEl.textContent = `Régimen: ${regimenFiscal}`;
+  if (previewUsoCFDIEl)       previewUsoCFDIEl.textContent       = `Uso CFDI: ${usoCFDI}`;
+  previewFolioEl.textContent    = folio;
+  previewPagoEl.textContent     = pago;
+  previewFechaEl.textContent    = invoiceDate;
   previewObservacionesEl.textContent = observaciones;
 
   invoiceItems.innerHTML = '';
@@ -137,6 +151,10 @@ resetBtn.addEventListener('click', () => {
   previewPagoEl.textContent = '--';
   previewFechaEl.textContent = '--';
   previewObservacionesEl.textContent = 'Sin observaciones.';
+  if (previewRazonSocialEl)   previewRazonSocialEl.textContent   = 'Razón Social: --';
+  if (previewCpFiscalEl)      previewCpFiscalEl.textContent      = 'C.P. Fiscal: --';
+  if (previewRegimenFiscalEl) previewRegimenFiscalEl.textContent = 'Régimen: --';
+  if (previewUsoCFDIEl)       previewUsoCFDIEl.textContent       = 'Uso CFDI: --';
 });
 
 downloadBtn.addEventListener('click', async () => {
@@ -150,6 +168,10 @@ downloadBtn.addEventListener('click', async () => {
     'Cliente: ' + document.getElementById('previewCliente').textContent,
     'Contacto: ' + document.getElementById('previewContacto').textContent,
     'RFC: ' + document.getElementById('previewRfc').textContent,
+    'Razón Social: ' + (document.getElementById('previewRazonSocial')?.textContent || '--'),
+    'C.P. Fiscal: ' + (document.getElementById('previewCpFiscal')?.textContent || '--'),
+    'Régimen Fiscal: ' + (document.getElementById('previewRegimenFiscal')?.textContent || '--'),
+    'Uso CFDI: ' + (document.getElementById('previewUsoCFDI')?.textContent || '--'),
     'Folio: ' + document.getElementById('previewFolio').textContent,
     'Forma de pago: ' + document.getElementById('previewPago').textContent,
     '',

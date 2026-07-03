@@ -96,3 +96,20 @@ input:focus, select:focus, textarea:focus { outline: 2px solid rgba(193,164,77,.
   .hero, .invoice-header, .invoice-meta, .company-bar { flex-direction: column; align-items: flex-start; }
   .invoice-details { width: 100%; }
 }
+
+/* CFDI form sections */
+.form-section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent-dark);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: 22px 0 10px;
+  padding-bottom: 7px;
+  border-bottom: 1.5px solid var(--border);
+}
+.form-section-title i { font-size: 13px; }
+.field-grid .full-width { grid-column: 1 / -1; }
