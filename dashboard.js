@@ -870,6 +870,12 @@ async function cargarHabitaciones(search = '', estado = '') {
       return;
     }
 
+    habitacionesFiltradas.sort((a, b) => {
+      const nA = parseFloat(a.numero) || 0;
+      const nB = parseFloat(b.numero) || 0;
+      return nA - nB;
+    });
+
     let html = `
       <table class="users-table">
         <thead>
@@ -963,6 +969,16 @@ async function cargarReservas() {
   } catch (error) {
     console.error('Error cargando reservas:', error);
   }
+}
+
+// Convierte un Timestamp de Firestore a fecha local usando partes UTC,
+// evitando el desfase de zona horaria en timestamps guardados como medianoche UTC.
+function fmtFecha(ts) {
+  if (!ts) return '';
+  try {
+    const d = ts.toDate ? ts.toDate() : new Date(ts);
+    return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()).toLocaleDateString('es-MX');
+  } catch (e) { return ''; }
 }
 
 function formatDate(value) {
@@ -3013,8 +3029,8 @@ async function generarTicketPDF(reservaId, reservaData, roomData, huespedesIds, 
       format: [pageWidth, pageHeight]
     });
     
-    const checkInDate = reservaData.checkIn && reservaData.checkIn.toDate ? reservaData.checkIn.toDate() : new Date(reservaData.checkIn);
-    const checkOutDate = reservaData.checkOut && reservaData.checkOut.toDate ? reservaData.checkOut.toDate() : new Date(reservaData.checkOut);
+    const checkInDate = fmtFecha(reservaData.checkIn);
+    const checkOutDate = fmtFecha(reservaData.checkOut);
     
     // Encabezado hotel
     doc.setFillColor(47, 139, 58);
@@ -3067,9 +3083,9 @@ async function generarTicketPDF(reservaId, reservaData, roomData, huespedesIds, 
     doc.text('RESERVA:', 5, yPos);
     doc.setFont(undefined, 'normal');
     yPos += 4;
-    doc.text(`Check-in: ${checkInDate.toLocaleDateString('es-MX')}`, 5, yPos);
+    doc.text(`Check-in: ${checkInDate}`, 5, yPos);
     yPos += 3;
-    doc.text(`Check-out: ${checkOutDate.toLocaleDateString('es-MX')}`, 5, yPos);
+    doc.text(`Check-out: ${checkOutDate}`, 5, yPos);
     yPos += 3;
     doc.text(`Noches: ${reservaData.noches}`, 5, yPos);
     yPos += 3;
@@ -3157,8 +3173,8 @@ async function cargarTickets() {
     
     ticketsSnap.forEach(doc => {
       const t = doc.data();
-      const checkInDate = t.checkIn && t.checkIn.toDate ? t.checkIn.toDate().toLocaleDateString('es-MX') : new Date(t.checkIn).toLocaleDateString('es-MX');
-      const checkOutDate = t.checkOut && t.checkOut.toDate ? t.checkOut.toDate().toLocaleDateString('es-MX') : new Date(t.checkOut).toLocaleDateString('es-MX');
+      const checkInDate = fmtFecha(t.checkIn);
+      const checkOutDate = fmtFecha(t.checkOut);
       const fechaCreado = t.creado && t.creado.toDate ? t.creado.toDate().toLocaleDateString('es-MX') : new Date(t.creado).toLocaleDateString('es-MX');
       
       html += `
@@ -3170,6 +3186,7 @@ async function cargarTickets() {
           <td style="padding: 10px; text-align: center; font-weight: bold;">$${parseFloat(t.total).toFixed(2)}</td>
           <td style="padding: 10px; text-align: center;">
             <button class="btn-primary" style="padding: 6px 12px; font-size: 12px; margin: 0 2px;" onclick="descargarTicket('${doc.id}', '${t.nombreHuesped}', '${fechaCreado}')">📥 Descargar</button>
+            <button class="btn-action btn-delete" style="padding: 6px 12px; font-size: 12px; margin: 0 2px;" onclick="eliminarTicket('${doc.id}')">🗑️ Eliminar</button>
           </td>
         </tr>
       `;
@@ -3211,8 +3228,8 @@ async function descargarTicket(ticketId, nombreHuesped, fechaCreado) {
       format: [pageWidth, pageHeight]
     });
     
-    const checkInDate = t.checkIn && t.checkIn.toDate ? t.checkIn.toDate() : new Date(t.checkIn);
-    const checkOutDate = t.checkOut && t.checkOut.toDate ? t.checkOut.toDate() : new Date(t.checkOut);
+    const checkInDate = fmtFecha(t.checkIn);
+    const checkOutDate = fmtFecha(t.checkOut);
     
     // Encabezado hotel
     docPDF.setFillColor(47, 139, 58);
@@ -3265,9 +3282,9 @@ async function descargarTicket(ticketId, nombreHuesped, fechaCreado) {
     docPDF.text('RESERVA:', 5, yPos);
     docPDF.setFont(undefined, 'normal');
     yPos += 4;
-    docPDF.text(`Check-in: ${checkInDate.toLocaleDateString('es-MX')}`, 5, yPos);
+    docPDF.text(`Check-in: ${checkInDate}`, 5, yPos);
     yPos += 3;
-    docPDF.text(`Check-out: ${checkOutDate.toLocaleDateString('es-MX')}`, 5, yPos);
+    docPDF.text(`Check-out: ${checkOutDate}`, 5, yPos);
     yPos += 3;
     docPDF.text(`Noches: ${t.noches}`, 5, yPos);
     yPos += 3;
@@ -3299,6 +3316,17 @@ async function descargarTicket(ticketId, nombreHuesped, fechaCreado) {
   } catch (error) {
     console.error('Error descargando ticket:', error);
     alert('Error al descargar ticket: ' + error.message);
+  }
+}
+
+async function eliminarTicket(ticketId) {
+  if (!confirm('¿Estás seguro de que deseas eliminar este ticket? Esta acción no se puede deshacer.')) return;
+  try {
+    await deleteDoc(doc(db, 'tickets', ticketId));
+    cargarTickets();
+  } catch (error) {
+    console.error('Error eliminando ticket:', error);
+    alert('Error al eliminar el ticket: ' + error.message);
   }
 }
 
@@ -3346,6 +3374,7 @@ window.calcularCambio = calcularCambio;
 window.generarTicketPDF = generarTicketPDF;
 window.cargarTickets = cargarTickets;
 window.descargarTicket = descargarTicket;
+window.eliminarTicket = eliminarTicket;
 window.filtrarHuespedes = filtrarHuespedes;
 window.cargarVentas = cargarVentas;
 window.mostrarFormularioProducto = mostrarFormularioProducto;
