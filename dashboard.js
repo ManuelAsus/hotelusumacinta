@@ -1131,6 +1131,20 @@ async function guardarReserva(reservaId = '') {
 
     if (reservaId) {
       await updateDoc(doc(db, 'reservas', reservaId), reservaData);
+
+      // Actualizar el ticket relacionado con las nuevas fechas
+      const noches = Math.ceil((checkOut - checkIn) / (1000 * 60 * 60 * 24));
+      const ticketsRelacionados = await getDocs(query(collection(db, 'tickets'), where('reservaId', '==', reservaId)));
+      const ticketUpdates = ticketsRelacionados.docs.map(tDoc =>
+        updateDoc(doc(db, 'tickets', tDoc.id), {
+          checkIn: checkIn,
+          checkOut: checkOut,
+          noches: noches,
+          total: totalVal
+        })
+      );
+      await Promise.all(ticketUpdates);
+
       alert('Reserva actualizada.');
     } else {
       reservaData.creado = new Date();
