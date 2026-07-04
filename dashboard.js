@@ -1087,7 +1087,7 @@ async function guardarReserva(reservaId = '') {
 
   try {
     // Recolectar datos de huésped y habitación
-    const guestDoc = await getDoc(doc(db, 'usuarios', guestId));
+    const guestDoc = await getDoc(doc(db, 'huespedes', guestId));
     const roomDoc = await getDoc(doc(db, 'habitaciones', roomId));
     if (!guestDoc.exists() || !roomDoc.exists()) {
       alert('Huésped o habitación inválidos.');
