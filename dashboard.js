@@ -463,8 +463,8 @@ async function calcularTotal() {
   }
   
   try {
-    const checkIn = new Date(checkInVal);
-    const checkOut = new Date(checkOutVal);
+    const checkIn = new Date(checkInVal + 'T12:00:00');
+    const checkOut = new Date(checkOutVal + 'T12:00:00');
     
     // Calcular diferencia en días
     const diffTime = checkOut - checkIn;
@@ -671,8 +671,8 @@ async function guardarMultiplesHuespedes() {
     
     // Si se seleccionó habitación, crear reserva automática
     if (habitacionId) {
-      const checkIn = new Date(checkInVal);
-      const checkOut = new Date(checkOutVal);
+      const checkIn = new Date(checkInVal + 'T12:00:00');
+      const checkOut = new Date(checkOutVal + 'T12:00:00');
       
       if (checkOut <= checkIn) {
         alert('La fecha de check-out debe ser posterior a check-in');
@@ -989,8 +989,8 @@ async function mostrarFormularioReserva(reserva = null) {
   const res = reserva ? (await getDoc(doc(db, 'reservas', reserva))).data() : null;
   const guestId = res ? res.guestId : '';
   const roomId = res ? res.roomId : '';
-  const checkIn = res && res.checkIn ? (res.checkIn.toDate ? res.checkIn.toDate().toISOString().slice(0,10) : new Date(res.checkIn).toISOString().slice(0,10)) : '';
-  const checkOut = res && res.checkOut ? (res.checkOut.toDate ? res.checkOut.toDate().toISOString().slice(0,10) : new Date(res.checkOut).toISOString().slice(0,10)) : '';
+  const checkIn = res && res.checkIn ? (() => { const d = res.checkIn.toDate ? res.checkIn.toDate() : new Date(res.checkIn); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })() : '';
+  const checkOut = res && res.checkOut ? (() => { const d = res.checkOut.toDate ? res.checkOut.toDate() : new Date(res.checkOut); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })() : '';
   const status = res ? res.status : 'Confirmada';
   const total = res ? (res.total || '') : '';
 
@@ -1078,8 +1078,8 @@ async function guardarReserva(reservaId = '') {
     return;
   }
 
-  const checkIn = new Date(checkInVal);
-  const checkOut = new Date(checkOutVal);
+  const checkIn = new Date(checkInVal + 'T12:00:00');
+  const checkOut = new Date(checkOutVal + 'T12:00:00');
   if (checkOut <= checkIn) {
     alert('La fecha de check-out debe ser posterior a check-in.');
     return;
