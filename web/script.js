@@ -79,6 +79,8 @@ document.querySelectorAll('.room-card, .servicio-card, .gallery-item').forEach(e
 // Validación del formulario de contacto (con Formspree)
 const contactForm = document.querySelector('.contacto-form');
 if (contactForm) {
+    contactForm.setAttribute('action', 'https://formspree.io/f/mdaqndll');
+
     contactForm.addEventListener('submit', (e) => {
         // Formspree manejará el envío, solo validamos los campos
         const nombre = contactForm.querySelector('input[name="nombre"]').value;
