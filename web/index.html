@@ -41,7 +41,6 @@
                     <a href="#galeria" class="nav-link">Galería</a>
                     <a href="#servicios" class="nav-link">Servicios</a>
                     <a href="#contacto" class="nav-link">Contacto</a>
-                    <a href="#contacto" class="nav-link btn-login">Reservar</a>
                     <a href="facturacion/index.html" class="nav-link btn-login" style="margin-left: 6px; background: #C1A44D;">Facturación</a>
                 </nav>
             </div>
@@ -57,7 +56,7 @@
         <div class="hero-content">
             <h2>Bienvenido a Casa Usumacinta</h2>
             <p>Vive la experiencia de un hogar en el corazón de la naturaleza</p>
-            <a href="#contacto" class="btn btn-primary">Hacer una Reserva</a>
+            <a href="#habitaciones" class="btn btn-primary">Hacer una Reserva</a>
         </div>
     </section>
 
@@ -101,6 +100,7 @@
                             <span><i class="fas fa-snowflake"></i> Aire Acondicionado</span>
                         </div>
                         <p class="room-capacity"><i class="fas fa-bed"></i> Para 1 persona</p>
+                        <button class="btn btn-primary reservar-btn" type="button" data-room-capacity="1" onclick="abrirModalReserva(1)">Reservar</button>
                     </div>
                 </div>
 
@@ -116,6 +116,7 @@
                             <span><i class="fas fa-snowflake"></i> Aire Acondicionado</span>
                         </div>
                         <p class="room-capacity"><i class="fas fa-bed"></i> Para 2 personas</p>
+                        <button class="btn btn-primary reservar-btn" type="button" data-room-capacity="2" onclick="abrirModalReserva(2)">Reservar</button>
                     </div>
                 </div>
 
@@ -131,6 +132,7 @@
                             <span><i class="fas fa-snowflake"></i> Clima Dual</span>
                         </div>
                         <p class="room-capacity"><i class="fas fa-bed"></i> Para 2-4 personas</p>
+                        <button class="btn btn-primary reservar-btn" type="button" data-room-capacity="4" onclick="abrirModalReserva(4)">Reservar</button>
                     </div>
                 </div>
             </div>
@@ -255,7 +257,7 @@
                         <i class="fas fa-envelope"></i>
                         <div>
                             <h3>Email</h3>
-                            <p><a href="mailto:info@casausumacinta.com">info@casausumacinta.com</a></p>
+                            <p><a href="mailto:hotelcasausumacinta@gmail.com">hotelcasausumacinta@gmail.com</a></p>
                         </div>
                     </div>
                     <div class="info-item">
@@ -327,8 +329,9 @@
         </div>
     </footer>
 
-    <script src="script.js"></script>
-        <div id="firestore-sync-status" style="position:fixed;right:12px;bottom:12px;background:rgba(0,0,0,0.7);color:#fff;padding:8px 10px;border-radius:6px;font-size:13px;z-index:9999;display:none"></div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="script.js" defer></script>
+    <div id="firestore-sync-status" style="position:fixed;right:12px;bottom:12px;background:rgba(0,0,0,0.7);color:#fff;padding:8px 10px;border-radius:6px;font-size:13px;z-index:9999;display:none"></div>
         <script type="module">
             import { firebaseConfig } from '../config.js';
             import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js';
@@ -380,6 +383,49 @@
                 nav.appendChild(btn);
             }
 
+            function ensureReservaButtonsInRoomCards(){
+                const roomCards = document.querySelectorAll('.room-card');
+                if(!roomCards.length) return;
+                roomCards.forEach(card => {
+                    const roomInfo = card.querySelector('.room-info') || card;
+                    if(!roomInfo) return;
+                    if(roomInfo.querySelector('.reservar-btn')) return;
+
+                    let capacidad = 1;
+                    const capacityText = card.querySelector('.room-capacity')?.textContent || '';
+                    const capacityMatch = capacityText.match(/(\d+)/);
+                    if(capacityMatch) capacidad = parseInt(capacityMatch[1], 10);
+
+                    const btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = 'btn btn-primary reservar-btn';
+                    btn.dataset.roomCapacity = capacidad;
+                    btn.textContent = 'Reservar';
+                    btn.addEventListener('click', function(){
+                        if(window.abrirModalReserva) window.abrirModalReserva(capacidad);
+                    });
+                    roomInfo.appendChild(btn);
+                });
+            }
+
+            function ensureContactEmail(){
+                const contactoSection = document.querySelector('#contacto');
+                if(!contactoSection) return;
+                const emailLink = contactoSection.querySelector('a[href^="mailto:"]');
+                if(!emailLink) return;
+                emailLink.href = 'mailto:hotelcasausumacinta@gmail.com';
+                emailLink.textContent = 'hotelcasausumacinta@gmail.com';
+            }
+
+            function ensureReservaCtaToHabitaciones(){
+                document.querySelectorAll('a[href="#contacto"]').forEach(link => {
+                    const text = (link.textContent || '').trim().toLowerCase();
+                    if(text.includes('reserva') || text.includes('hacer una reserva')){
+                        link.href = '#habitaciones';
+                    }
+                });
+            }
+
             function applyHtml(html){
                 if(!html) return false;
                 const parser = new DOMParser();
@@ -388,6 +434,9 @@
                 document.body.innerHTML = doc.body.innerHTML;
                 document.body.querySelectorAll('script').forEach(script => script.remove());
                 ensureFacturacionBtn();
+                ensureReservaButtonsInRoomCards();
+                ensureContactEmail();
+                ensureReservaCtaToHabitaciones();
 
                 let statusEl = document.getElementById('firestore-sync-status');
                 if(!statusEl){

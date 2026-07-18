@@ -8,6 +8,89 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
+const COMPROBANTE_CHUNK_SIZE = 700000;
+
+async function procesarArchivoParaFirestore(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result;
+      const commaIdx = dataUrl.indexOf(',');
+      const header = dataUrl.substring(0, commaIdx + 1);
+      const base64 = dataUrl.substring(commaIdx + 1);
+      if (base64.length <= COMPROBANTE_CHUNK_SIZE) {
+        resolve({ header, chunked: false, inline: base64 });
+      } else {
+        const chunks = [];
+        for (let i = 0; i < base64.length; i += COMPROBANTE_CHUNK_SIZE) {
+          chunks.push(base64.substring(i, i + COMPROBANTE_CHUNK_SIZE));
+        }
+        resolve({ header, chunked: true, chunks });
+      }
+    };
+    reader.onerror = () => reject(new Error('Error leyendo el archivo de comprobante'));
+    reader.readAsDataURL(file);
+  });
+}
+
+function sanitizeFileName(name) {
+  return String(name || 'comprobante').replace(/'/g, "\\'").replace(/"/g, '\\"');
+}
+
+async function descargarComprobanteReserva(reservaId, filename = '') {
+  if (!reservaId) {
+    alert('Reserva inválida para descargar comprobante.');
+    return;
+  }
+
+  try {
+    const reservaDoc = await getDoc(doc(db, 'reservas', reservaId));
+    if (!reservaDoc.exists()) {
+      alert('Reserva no encontrada.');
+      return;
+    }
+
+    const reserva = reservaDoc.data();
+    if (!reserva.paymentProofName) {
+      alert('No hay comprobante asociado a esta reserva.');
+      return;
+    }
+
+    let dataUrl = null;
+    if (reserva.paymentProofInline) {
+      dataUrl = `${reserva.paymentProofHeader}${reserva.paymentProofInline}`;
+    } else if (reserva.paymentProofChunked) {
+      const chunksSnap = await getDocs(query(collection(db, 'reservas', reservaId, 'comprobanteChunks'), orderBy('__name__')));
+      const chunks = [];
+      chunksSnap.forEach(docSnap => {
+        const chunkData = docSnap.data();
+        if (chunkData && chunkData.data) {
+          chunks.push(chunkData.data);
+        }
+      });
+      if (!chunks.length) {
+        alert('No se encontraron los datos del comprobante.');
+        return;
+      }
+      dataUrl = `${reserva.paymentProofHeader}${chunks.join('')}`;
+    } else {
+      alert('El comprobante no está disponible.');
+      return;
+    }
+
+    const downloadName = filename || reserva.paymentProofName || 'comprobante';
+    const link = document.createElement('a');
+    link.href = dataUrl;
+    link.download = downloadName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  } catch (error) {
+    console.error('Error descargando comprobante:', error);
+    alert('Error descargando comprobante: ' + error.message);
+  }
+}
+
 // Elementos del DOM
 const navItems = document.querySelectorAll('.nav-item[data-section]');
 const contentSections = document.querySelectorAll('.content-section');
@@ -346,10 +429,6 @@ async function mostrarFormularioHuesped(huesped = null) {
                   <input type="radio" id="reservaInmediata" name="tipoReserva" value="Inmediata" checked onchange="actualizarPorcentajePago()">
                   <span>✅ Inmediata</span>
                 </label>
-                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 10px; border: 2px solid #d0d0d0; border-radius: 8px; background: white; font-weight: 600; color: #2c3e50; transition: all 0.3s;">
-                  <input type="radio" id="reservaEspera" name="tipoReserva" value="Con Tiempo de Espera" onchange="actualizarPorcentajePago()">
-                  <span>⏳ Con Tiempo de Espera</span>
-                </label>
               </div>
             </div>
           </div>
@@ -375,18 +454,33 @@ async function mostrarFormularioHuesped(huesped = null) {
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px;">
             <div>
               <label style="font-weight: 700; color: #2f5230; display: block; margin-bottom: 8px; font-size: 14px;">💳 Tipo de Pago</label>
-              <select id="tipoPago" style="width: 100%; padding: 12px; border-radius: 8px; border: 2px solid #e0e6e9; font-size: 14px; background: white;" onchange="mostrarCampoEfectivo()">
+              <select id="tipoPago" style="width: 100%; padding: 12px; border-radius: 8px; border: 2px solid #e0e6e9; font-size: 14px; background: white;" onchange="mostrarCampoPagoHuesped()">
                 <option value="">Selecciona tipo de pago</option>
                 <option value="Efectivo">💵 Efectivo</option>
-                <option value="Tarjeta">💳 Tarjeta</option>
                 <option value="Transferencia">🏦 Transferencia</option>
               </select>
+            </div>
+            <div id="transferenciaContainer" style="display: none; background: #f0f7ff; padding: 14px; border-radius: 10px; margin-bottom: 14px; border-left: 4px solid #2f8b3a;">
+              <label style="font-weight: 700; color: #2f5230; display: block; margin-bottom: 8px; font-size: 14px;">🧾 Facturar</label>
+              <div style="display: flex; gap: 12px; align-items: center; margin-bottom: 12px;">
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;"><input type="radio" id="facturarNo" name="facturar" value="no" checked> No</label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;"><input type="radio" id="facturarSi" name="facturar" value="si"> Sí</label>
+              </div>
+              <div style="margin-bottom: 12px;">
+                <label style="font-weight: 700; color: #2f5230; display: block; margin-bottom: 8px; font-size: 14px;">🏦 Datos Bancarios</label>
+                <div class="datos-bancarios" id="datosBancariosTexto">CLABE interbancaria 012796015605553236 banco BBVA</div>
+              </div>
+              <div>
+                <label style="font-weight: 700; color: #2f5230; display: block; margin-bottom: 8px; font-size: 14px;">📄 Comprobante de Transferencia</label>
+                <input id="comprobantePago" type="file" accept="image/*,.pdf" style="width: 100%; padding: 10px; border-radius: 8px; border: 2px solid #e0e6e9; background: white;">
+              </div>
             </div>
             <div id="porcentajePagoContainer" style="display: none;">
               <label style="font-weight: 700; color: #2f5230; display: block; margin-bottom: 8px; font-size: 14px;">📊 % Pago Inicial</label>
               <select id="porcentajePago" style="width: 100%; padding: 12px; border-radius: 8px; border: 2px solid #e0e6e9; font-size: 14px; background: white;" onchange="calcularTotal()">
                 <option value="100">100% (Pago Completo)</option>
                 <option value="50">50% (Anticipo)</option>
+                <option value="35">35% (Anticipo)</option>
               </select>
             </div>
           </div>
@@ -416,6 +510,8 @@ async function mostrarFormularioHuesped(huesped = null) {
     
     document.getElementById('modal').classList.add('active');
     seleccionarCantidad(1);
+    attachFacturarReservaListeners();
+    mostrarCampoPagoHuesped();
     return;
   }
   
@@ -522,13 +618,47 @@ function mostrarCampoEfectivo() {
   if (tipoPago === 'Efectivo') {
     efectivoContainer.style.display = 'block';
   } else {
-    efectivoContainer.style.display = 'none';
+    if (efectivoContainer) efectivoContainer.style.display = 'none';
     const efectivoRecibido = document.getElementById('efectivoRecibido');
     const cambio = document.getElementById('cambio');
     if (efectivoRecibido) efectivoRecibido.value = '';
     if (cambio) cambio.value = '';
   }
   calcularCambio();
+}
+
+function mostrarCampoPagoHuesped() {
+  const tipoPago = document.getElementById('tipoPago')?.value;
+  const transferenciaContainer = document.getElementById('transferenciaContainer');
+
+  if (tipoPago === 'Transferencia') {
+    if (transferenciaContainer) transferenciaContainer.style.display = 'block';
+  } else {
+    if (transferenciaContainer) transferenciaContainer.style.display = 'none';
+    const comprobante = document.getElementById('comprobantePago');
+    if (comprobante) comprobante.value = '';
+  }
+
+  actualizarDatosBancarios();
+}
+
+function attachFacturarReservaListeners() {
+  const radios = document.querySelectorAll('input[name="facturar"]');
+  radios.forEach(radio => {
+    radio.removeEventListener('change', actualizarDatosBancarios);
+    radio.addEventListener('change', actualizarDatosBancarios);
+  });
+}
+
+function actualizarDatosBancarios() {
+  const facturar = document.querySelector('input[name="facturar"]:checked')?.value || 'no';
+  const datosTexto = document.getElementById('datosBancariosTexto');
+  if (!datosTexto) return;
+  if (facturar === 'si') {
+    datosTexto.textContent = 'CLABE interbancaria XXXXXXXX banco XXXXXX';
+  } else {
+    datosTexto.textContent = 'CLABE interbancaria 012796015605553236 banco BBVA';
+  }
 }
 
 function calcularCambio() {
@@ -615,19 +745,26 @@ function generarFormulariosHuespedes() {
   container.innerHTML = html;
 }
 
-async function guardarMultiplesHuespedes() {
+async function guardarMultiplesHuespedes(requireReservation = false) {
   const cantidad = parseInt(document.getElementById('cantidadHuespedes').value, 10) || 1;
   const habitacionId = document.getElementById('huespedHabitacion').value;
   const checkInVal = document.getElementById('checkInDate').value;
   const checkOutVal = document.getElementById('checkOutDate').value;
   const tipoPago = document.getElementById('tipoPago').value;
   const tipoReserva = document.querySelector('input[name="tipoReserva"]:checked').value;
+  const facturar = document.querySelector('input[name="facturar"]:checked')?.value || 'no';
   const porcentajePago = document.getElementById('porcentajePago') ? parseInt(document.getElementById('porcentajePago').value, 10) : 100;
+  const comprobanteFile = document.getElementById('comprobantePago')?.files[0];
   const nombres = document.querySelectorAll('.huesped-nombre');
   const telefonos = document.querySelectorAll('.huesped-telefono');
   const origenes = document.querySelectorAll('.huesped-origen');
   const correos = document.querySelectorAll('.huesped-correo');
   
+  if (requireReservation && !habitacionId) {
+    alert('Por favor selecciona una habitación para crear la reserva.');
+    return;
+  }
+
   // Capturar datos de efectivo si aplica
   const efectivoRecibido = tipoPago === 'Efectivo' ? parseFloat(document.getElementById('efectivoRecibido')?.value || 0) : null;
   
@@ -671,6 +808,11 @@ async function guardarMultiplesHuespedes() {
     
     // Si se seleccionó habitación, crear reserva automática
     if (habitacionId) {
+      if (tipoPago === 'Transferencia' && !comprobanteFile) {
+        alert('Sube el comprobante de transferencia para la reserva.');
+        return;
+      }
+
       const checkIn = new Date(checkInVal + 'T12:00:00');
       const checkOut = new Date(checkOutVal + 'T12:00:00');
       
@@ -698,6 +840,10 @@ async function guardarMultiplesHuespedes() {
       if (tipoPago === 'Efectivo' && efectivoRecibido) {
         cambioTotal = efectivoRecibido - totalReserva;
       }
+
+      const comprobanteData = await procesarArchivoParaFirestore(comprobanteFile);
+      const bankClabe = facturar === 'si' ? 'XXXXXXXX' : '012796015605553236';
+      const bankName = facturar === 'si' ? 'XXXXXX' : 'BBVA';
       
       const reservaData = {
         guestId: huespedesIds[0], // Primer huésped como principal
@@ -710,11 +856,18 @@ async function guardarMultiplesHuespedes() {
         status: 'Confirmada',
         paymentMethod: tipoPago,
         tipoReserva: tipoReserva,
+        facturar: facturar,
         porcentajePago: porcentajePago,
         noches: diffDays,
         precioNoche: precioNoche,
         totalOriginal: precioNoche * diffDays,
         total: totalReserva,
+        paymentProofName: comprobanteFile.name,
+        paymentProofHeader: comprobanteData.header,
+        paymentProofInline: comprobanteData.chunked ? '' : comprobanteData.inline,
+        paymentProofChunked: comprobanteData.chunked,
+        bankClabe: bankClabe,
+        bankName: bankName,
         efectivoRecibido: tipoPago === 'Efectivo' ? efectivoRecibido : null,
         cambio: tipoPago === 'Efectivo' ? cambioTotal : null,
         additionalGuests: huespedesIds.slice(1),
@@ -723,6 +876,13 @@ async function guardarMultiplesHuespedes() {
       
       const reservaRef = await addDoc(collection(db, 'reservas'), reservaData);
       await updateDoc(doc(db, 'habitaciones', habitacionId), { estado: 'Ocupada', actualizado: new Date() });
+      
+      if (comprobanteData.chunked) {
+        const chunkWrites = comprobanteData.chunks.map((chunkData, idx) =>
+          setDoc(doc(db, 'reservas', reservaRef.id, 'comprobanteChunks', `chunk${idx + 1}`), { data: chunkData })
+        );
+        await Promise.all(chunkWrites);
+      }
       
       // Guardar transacción de caja si es efectivo
       if (tipoPago === 'Efectivo' && efectivoRecibido) {
@@ -932,7 +1092,7 @@ async function cargarReservas() {
     let html = `
       <table class="users-table">
         <thead>
-          <tr><th>ID</th><th>Huésped</th><th>Habitación</th><th>Check-in</th><th>Check-out</th><th>Estado</th><th>Pago</th><th>Total</th><th>Acciones</th></tr>
+          <tr><th>ID</th><th>Huésped</th><th>Habitación</th><th>Check-in</th><th>Check-out</th><th>Estado</th><th>Pago</th><th>Total</th><th>Comprobantes</th><th>Acciones</th></tr>
         </thead>
         <tbody>`;
 
@@ -946,6 +1106,9 @@ async function cargarReservas() {
       const estado = r.status || 'Pendiente';
       const pago = r.paymentMethod || '—';
       const total = r.total ? `$${parseFloat(r.total).toFixed(2)}` : '—';
+      const proofCell = r.paymentProofName
+        ? `<button class="btn-action btn-download" onclick="descargarComprobanteReserva('${id}', '${sanitizeFileName(r.paymentProofName)}')">Descargar</button>`
+        : '—';
 
       html += `
         <tr>
@@ -957,6 +1120,7 @@ async function cargarReservas() {
           <td>${estado}</td>
           <td>${pago}</td>
           <td>${total}</td>
+          <td>${proofCell}</td>
           <td>
             <button class="btn-action btn-edit" onclick="editarReserva('${id}')">Editar</button>
             <button class="btn-action btn-delete" onclick="eliminarReserva('${id}')">Eliminar</button>
@@ -995,6 +1159,105 @@ function formatDate(value) {
 // Reservas: modal, guardar, editar, eliminar
 async function mostrarFormularioReserva(reserva = null) {
   const modalContent = document.getElementById('modalContent');
+
+  if (!reserva) {
+    const cantidadBotones = [1,2,3,4,5,6].map(n => `<button type="button" class="cantidad-btn" data-cantidad="${n}" onclick="seleccionarCantidad(${n})" style="padding: 10px 16px; border: 2px solid #d0d0d0; border-radius: 8px; background: white; cursor: pointer; font-weight: 600; color: #2c3e50; transition: all 0.3s; min-width: 50px; font-size: 14px;">${n}</button>`).join('');
+
+    modalContent.innerHTML = `
+      <div class="modal-header">
+        <h2>🧳 Nueva Reserva</h2>
+        <button class="close-modal" onclick="cerrarModal()" aria-label="Cerrar">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div style="background: linear-gradient(135deg, #f0f9ff 0%, #e0f4ff 100%); padding: 20px; border-radius: 12px; margin-bottom: 20px; border-left: 4px solid #2f8b3a;">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 20px;">
+            <div style="flex: 1;">
+              <label style="font-weight: 700; color: #2f5230; display: block; margin-bottom: 12px; font-size: 15px;">👥 ¿Cuántos huéspedes deseas agregar?</label>
+              <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                ${cantidadBotones}
+              </div>
+              <input id="cantidadHuespedes" type="hidden" value="1">
+            </div>
+            <div style="flex: 1;">
+              <label style="font-weight: 700; color: #2f5230; display: block; margin-bottom: 12px; font-size: 15px;">⏰ Tipo de Reserva</label>
+              <div style="display: flex; gap: 8px; flex-direction: column;">
+                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 10px; border: 2px solid #d0d0d0; border-radius: 8px; background: white; font-weight: 600; color: #2c3e50; transition: all 0.3s;">
+                  <input type="radio" id="reservaConEspera" name="tipoReserva" value="Con Tiempo de Espera" checked onchange="actualizarPorcentajePago()">
+                  <span>⏳ Con tiempo de espera</span>
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div id="huespedFormContainer"></div>
+        <div style="background: #f8f9fa; padding: 16px; border-radius: 12px; margin-top: 20px;">
+          <label style="font-weight: 700; color: #2f5230; display: block; margin-bottom: 8px; font-size: 14px;">🛏️ Habitación (requerida para reserva)</label>
+          <select id="huespedHabitacion" style="width: 100%; padding: 12px; border-radius: 8px; border: 2px solid #e0e6e9; font-size: 14px; background: white;">
+            <option value="">Sin asignar habitación</option>
+          </select>
+        </div>
+        <div style="background: #f8f9fa; padding: 16px; border-radius: 12px; margin-top: 16px;">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px;">
+            <div>
+              <label style="font-weight: 700; color: #2f5230; display: block; margin-bottom: 8px; font-size: 14px;">📅 Check-in</label>
+              <input id="checkInDate" type="date" style="width: 100%; padding: 12px; border-radius: 8px; border: 2px solid #e0e6e9; font-size: 14px; background: white;">
+            </div>
+            <div>
+              <label style="font-weight: 700; color: #2f5230; display: block; margin-bottom: 8px; font-size: 14px;">📅 Check-out</label>
+              <input id="checkOutDate" type="date" style="width: 100%; padding: 12px; border-radius: 8px; border: 2px solid #e0e6e9; font-size: 14px; background: white;">
+            </div>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px;">
+            <div>
+              <label style="font-weight: 700; color: #2f5230; display: block; margin-bottom: 8px; font-size: 14px;">💳 Tipo de Pago</label>
+              <select id="tipoPago" style="width: 100%; padding: 12px; border-radius: 8px; border: 2px solid #e0e6e9; font-size: 14px; background: white;" disabled>
+                <option value="Transferencia">🏦 Transferencia</option>
+              </select>
+            </div>
+            <div>
+              <label style="font-weight: 700; color: #2f5230; display: block; margin-bottom: 8px; font-size: 14px;">🧾 Facturar</label>
+              <div style="display: flex; gap: 12px; align-items: center;">
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;"><input type="radio" id="facturarNo" name="facturar" value="no" checked> No</label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;"><input type="radio" id="facturarSi" name="facturar" value="si"> Sí</label>
+              </div>
+            </div>
+          </div>
+          <div id="datosBancariosContainer" style="display:block; background: #f0f7ff; padding: 14px; border-radius: 10px; margin-bottom: 14px; border-left: 4px solid #2f8b3a;">
+            <label style="font-weight: 700; color: #2f5230; display: block; margin-bottom: 8px; font-size: 14px;">🏦 Datos Bancarios</label>
+            <div class="datos-bancarios" id="datosBancariosTexto">CLABE interbancaria 012796015605553236 banco BBVA</div>
+          </div>
+          <div style="margin-bottom: 14px;">
+            <label style="font-weight: 700; color: #2f5230; display: block; margin-bottom: 8px; font-size: 14px;">📄 Comprobante de Transferencia</label>
+            <input id="comprobantePago" type="file" accept="image/*,.pdf" required style="width: 100%; padding: 10px; border-radius: 8px; border: 2px solid #e0e6e9; background: white;">
+          </div>
+          <div id="porcentajePagoContainer" style="display: none;">
+            <label style="font-weight: 700; color: #2f5230; display: block; margin-bottom: 8px; font-size: 14px;">📊 % Pago Inicial</label>
+            <select id="porcentajePago" style="width: 100%; padding: 12px; border-radius: 8px; border: 2px solid #e0e6e9; font-size: 14px; background: white;" onchange="calcularTotal()">
+              <option value="100">100% (Pago Completo)</option>
+              <option value="50">50% (Anticipo)</option>
+              <option value="35">35% (Anticipo)</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-weight: 700; color: #2f5230; display: block; margin-bottom: 8px; font-size: 14px;">💰 Total</label>
+            <input id="totalReserva" type="text" readonly style="width: 100%; padding: 12px; border-radius: 8px; border: 2px solid #27ae60; font-size: 14px; background: #e8f5e9; color: #2f5230; font-weight: 700;">
+          </div>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-secondary" onclick="cerrarModal()">Cancelar</button>
+        <button class="btn-primary" onclick="guardarMultiplesHuespedes(true)">Guardar Reserva</button>
+      </div>
+    `;
+
+    document.getElementById('modal').classList.add('active');
+    seleccionarCantidad(1);
+    actualizarPorcentajePago();
+    attachFacturarReservaListeners();
+    actualizarDatosBancarios();
+    return;
+  }
+
   // cargar huéspedes y habitaciones para selects
   const usersSnap = await getDocs(collection(db, 'huespedes'));
   const roomsSnap = await getDocs(collection(db, 'habitaciones'));
@@ -1009,6 +1272,10 @@ async function mostrarFormularioReserva(reserva = null) {
   const checkOut = res && res.checkOut ? (() => { const d = res.checkOut.toDate ? res.checkOut.toDate() : new Date(res.checkOut); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })() : '';
   const status = res ? res.status : 'Confirmada';
   const total = res ? (res.total || '') : '';
+  const totalOriginal = res ? parseFloat(res.totalOriginal || total || 0) : 0;
+  const totalPagado = res ? parseFloat(res.total || 0) : 0;
+  const restante = Math.max(0, totalOriginal - totalPagado);
+  const restantePagadoChecked = res && res.restantePagado ? 'checked' : '';
 
   // Si es edición, obtener solo los huéspedes hospedados en esa habitación
   let huespedesToShow = users;
@@ -1067,8 +1334,20 @@ async function mostrarFormularioReserva(reserva = null) {
           </select>
         </div>
         <div>
-          <label for="reservaTotal">Total</label>
-          <input id="reservaTotal" type="number" step="0.01" value="${total}" placeholder="Opcional">
+          <label for="reservaTotal">Total pagado</label>
+          <input id="reservaTotal" type="number" step="0.01" value="${total}" placeholder="Opcional" oninput="actualizarRestanteReserva()">
+        </div>
+        <div>
+          <label for="reservaTotalOriginal">Total original</label>
+          <input id="reservaTotalOriginal" type="number" step="0.01" value="${totalOriginal}" placeholder="Total original" readonly>
+        </div>
+        <div>
+          <label for="reservaRestante">Restante por pagar</label>
+          <input id="reservaRestante" type="number" step="0.01" value="${restante.toFixed(2)}" placeholder="Restante" readonly>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <input id="reservaRestantePagado" type="checkbox" ${restantePagadoChecked} onchange="actualizarRestanteReserva()">
+          <label for="reservaRestantePagado" style="margin:0;">Ya pagó el restante</label>
         </div>
       </form>
     </div>
@@ -1079,6 +1358,15 @@ async function mostrarFormularioReserva(reserva = null) {
   `;
 
   document.getElementById('modal').classList.add('active');
+}
+
+function actualizarRestanteReserva() {
+  const totalOriginal = parseFloat(document.getElementById('reservaTotalOriginal')?.value || '0');
+  const totalPagado = parseFloat(document.getElementById('reservaTotal')?.value || '0');
+  const restantePagado = document.getElementById('reservaRestantePagado')?.checked || false;
+  const restante = restantePagado ? 0 : Math.max(0, totalOriginal - totalPagado);
+  const restanteInput = document.getElementById('reservaRestante');
+  if (restanteInput) restanteInput.value = restante.toFixed(2);
 }
 
 async function guardarReserva(reservaId = '') {
@@ -1101,6 +1389,9 @@ async function guardarReserva(reservaId = '') {
     return;
   }
 
+  const restantePagado = document.getElementById('reservaRestantePagado')?.checked || false;
+  const totalOriginalVal = parseFloat(document.getElementById('reservaTotalOriginal')?.value || totalVal || '0');
+  
   try {
     // Recolectar datos de huésped y habitación
     const guestDoc = await getDoc(doc(db, 'huespedes', guestId));
@@ -1132,6 +1423,15 @@ async function guardarReserva(reservaId = '') {
       }
     }
 
+    const currentReservaDoc = reservaId ? await getDoc(doc(db, 'reservas', reservaId)) : null;
+    const currentReserva = currentReservaDoc && currentReservaDoc.exists() ? currentReservaDoc.data() : null;
+    const pagoOriginal = currentReserva ? parseFloat(currentReserva.totalOriginal || currentReserva.total || totalVal) : totalOriginalVal;
+    const porcentajePago = currentReserva ? (currentReserva.porcentajePago || 100) : 100;
+    const paymentMethod = currentReserva ? (currentReserva.paymentMethod || 'Transferencia') : 'Transferencia';
+    const tipoReserva = currentReserva ? (currentReserva.tipoReserva || 'Con Tiempo de Espera') : 'Con Tiempo de Espera';
+    const totalFinal = restantePagado ? pagoOriginal : totalVal;
+    const restanteFinal = Math.max(0, pagoOriginal - totalFinal);
+
     const reservaData = {
       guestId,
       guestName,
@@ -1141,27 +1441,64 @@ async function guardarReserva(reservaId = '') {
       checkIn: checkIn,
       checkOut: checkOut,
       status,
-      total: totalVal,
+      total: totalFinal,
+      totalOriginal: pagoOriginal,
+      restante: restanteFinal,
+      restantePagado: restantePagado,
+      porcentajePago: porcentajePago,
+      paymentMethod: paymentMethod,
+      tipoReserva: tipoReserva,
       actualizado: new Date()
     };
 
+    const ticketDataBase = {
+      reservaId: reservaId || null,
+      nombreHuesped: guestName,
+      telefonoHuesped: guestDoc.data().telefono || '',
+      numeroHabitacion: roomNumber,
+      tipoHabitacion: roomDoc.data().tipo,
+      capacidadHabitacion: roomDoc.data().capacidad,
+      checkIn: checkIn,
+      checkOut: checkOut,
+      noches: Math.ceil((checkOut - checkIn) / (1000 * 60 * 60 * 24)),
+      precioNoche: roomDoc.data().precioNoche || 0,
+      total: totalFinal,
+      totalOriginal: pagoOriginal,
+      restante: restanteFinal,
+      restantePagado: restantePagado,
+      tipoPago: paymentMethod,
+      tipoReserva: tipoReserva,
+      paymentProofUrl: currentReserva?.paymentProofUrl || null,
+      creado: new Date()
+    };
+
     if (reservaId) {
-      await updateDoc(doc(db, 'reservas', reservaId), reservaData);
+      const reservaDocRef = doc(db, 'reservas', reservaId);
+      await updateDoc(reservaDocRef, {
+        ...reservaData,
+        ticketData: ticketDataBase,
+        ticketUpdatedAt: new Date(),
+        ticketVisible: true
+      });
 
-      // Actualizar el ticket relacionado con las nuevas fechas
-      const noches = Math.ceil((checkOut - checkIn) / (1000 * 60 * 60 * 24));
       const ticketsRelacionados = await getDocs(query(collection(db, 'tickets'), where('reservaId', '==', reservaId)));
-      const ticketUpdates = ticketsRelacionados.docs.map(tDoc =>
-        updateDoc(doc(db, 'tickets', tDoc.id), {
-          checkIn: checkIn,
-          checkOut: checkOut,
-          noches: noches,
-          total: totalVal
-        })
-      );
-      await Promise.all(ticketUpdates);
+      const ticketExistente = ticketsRelacionados.docs[0];
+      const deletes = ticketsRelacionados.docs.slice(1).map(tDoc => deleteDoc(doc(db, 'tickets', tDoc.id)));
+      await Promise.all(deletes);
 
-      alert('Reserva actualizada.');
+      await generarTicketPDF(
+        reservaId,
+        { ...reservaData, ...ticketDataBase },
+        roomDoc.data(),
+        [guestId],
+        guestName,
+        guestDoc.data().telefono || '',
+        ticketExistente?.id || null
+      );
+
+      await cargarTickets();
+
+      alert('Reserva actualizada. Se actualizó el ticket asociado.');
     } else {
       reservaData.creado = new Date();
       await addDoc(collection(db, 'reservas'), reservaData);
@@ -1929,6 +2266,7 @@ async function eliminarProducto(productoId, esChunked) {
 
 // ---- Registrar Venta ----
 let _ventaProductosCatalogo = [];
+let _ventaLineItems = [];
 
 async function mostrarFormularioVenta() {
   const modal = document.getElementById('modal');
@@ -1948,23 +2286,14 @@ async function mostrarFormularioVenta() {
     const snap = await getDocs(collection(db, 'productos'));
     _ventaProductosCatalogo = [];
     snap.forEach(d => _ventaProductosCatalogo.push({ id: d.id, ...d.data() }));
-    // Ordenar por nombre localmente
     _ventaProductosCatalogo.sort((a, b) => (a.nombre || '').localeCompare(b.nombre || '', 'es'));
   } catch (e) {
     console.error('Error cargando productos para venta', e);
     _ventaProductosCatalogo = [];
   }
 
+  _ventaLineItems = [];
   const hayProductos = _ventaProductosCatalogo.length > 0;
-  const selectHtml = hayProductos
-    ? `<select id="ventaProductoSelect" onchange="actualizarInfoProductoVenta()">
-         <option value="">— Selecciona un producto —</option>
-         ${_ventaProductosCatalogo.map(p =>
-           `<option value="${p.id}" data-precio="${p.precio}" data-stock="${p.stock}">
-              ${p.nombre} — $${Number(p.precio).toFixed(2)} (Stock: ${p.stock})
-            </option>`).join('')}
-       </select>`
-    : `<p style="color:#9ca3af;font-size:14px;padding:10px;background:#f9fafb;border-radius:8px;text-align:center;">No hay productos disponibles. Agrega productos primero.</p>`;
 
   modalContent.innerHTML = `
     <div class="modal-header">
@@ -1974,39 +2303,32 @@ async function mostrarFormularioVenta() {
     <div class="modal-body">
       <div id="ventaFormError" style="display:none;color:#991b1b;margin-bottom:12px;padding:10px 14px;background:#fee2e2;border-radius:8px;font-size:14px;"></div>
       <div class="modal-form">
-        <div>
+        <div style="grid-column: 1 / -1;">
           <label>Nombre del Cliente *</label>
           <input type="text" id="ventaClienteNombre" placeholder="Ej: Juan García" autocomplete="off">
         </div>
-        <div>
-          <label>Producto *</label>
-          ${selectHtml}
+        <div style="grid-column: 1 / -1;">
+          <label>Buscar productos</label>
+          <input type="search" id="ventaProductoBuscar" class="venta-productos-buscar" placeholder="Filtrar productos por nombre..." autocomplete="off" ${!hayProductos ? 'disabled' : ''}>
         </div>
-        <div id="ventaInfoProducto" style="display:none;background:#f8faf7;padding:12px 16px;border-radius:10px;border:1px solid #dde8db;font-size:14px;">
-          <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
-            <span style="color:#6b7280;">Precio unitario:</span>
-            <strong id="ventaPrecioUnitario" style="color:#C1A44D;">$0.00</strong>
-          </div>
-          <div style="display:flex;justify-content:space-between;">
-            <span style="color:#6b7280;">Stock disponible:</span>
-            <strong id="ventaStockDisponible">0</strong>
-          </div>
+        <div style="grid-column: 1 / -1;">
+          <div id="ventaProductosDisponibles" class="venta-productos-list"></div>
         </div>
-        <div>
-          <label>Cantidad *</label>
-          <input type="number" id="ventaCantidad" min="1" max="9999" value="1" oninput="calcularTotalVenta()">
+        <div style="grid-column: 1 / -1;">
+          <h3 style="margin:0 0 10px;color:#2c3e50;">Productos seleccionados</h3>
+          <div id="ventaProductosSeleccionados"></div>
         </div>
-        <div style="background:rgba(193,164,77,0.08);padding:14px 18px;border-radius:10px;border:1px solid rgba(193,164,77,0.25);">
+        <div style="grid-column: 1 / -1;background:rgba(193,164,77,0.08);padding:14px 18px;border-radius:10px;border:1px solid rgba(193,164,77,0.25);">
           <div style="display:flex;justify-content:space-between;align-items:center;">
             <span style="font-size:14px;color:#374151;font-weight:600;">Total a pagar:</span>
             <strong id="ventaTotal" style="color:#C1A44D;font-size:22px;font-weight:800;">$0.00</strong>
           </div>
         </div>
-        <div>
+        <div style="grid-column: 1 / -1;">
           <label>Monto Recibido (MXN) *</label>
-          <input type="number" id="ventaMontoRecibido" min="0" step="0.01" placeholder="0.00" oninput="calcularCambioVenta()">
+          <input type="number" id="ventaMontoRecibido" min="0" step="0.01" placeholder="0.00" ${!hayProductos ? 'disabled' : ''}>
         </div>
-        <div id="ventaCambioBox" style="display:none;background:#f0fdf4;padding:14px 18px;border-radius:10px;border:1px solid #bbf7d0;">
+        <div id="ventaCambioBox" style="display:none;background:#f0fdf4;padding:14px 18px;border-radius:10px;border:1px solid #bbf7d0;grid-column: 1 / -1;">
           <div style="display:flex;justify-content:space-between;align-items:center;">
             <span style="font-size:14px;color:#374151;font-weight:600;">Cambio a entregar:</span>
             <strong id="ventaCambio" style="font-size:20px;font-weight:800;color:#166534;">$0.00</strong>
@@ -2014,38 +2336,128 @@ async function mostrarFormularioVenta() {
         </div>
       </div>
     </div>
-    <div style="padding:16px 24px 20px;display:flex;gap:10px;justify-content:flex-end;border-top:1px solid #f3f4f6;">
-      <button class="btn-action btn-view" onclick="cerrarModal()">Cancelar</button>
-      <button class="btn-primary" id="btnGuardarVenta" onclick="guardarVenta()" ${!hayProductos ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''}>
+    <div class="modal-actions">
+      <button class="btn-secondary" id="btnCancelarVenta">Cancelar</button>
+      <button class="btn-primary" id="btnGuardarVenta" ${!hayProductos ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''}>
         <i class="fas fa-receipt"></i> Guardar y Generar Ticket
       </button>
     </div>`;
+
+  const inputBuscar = document.getElementById('ventaProductoBuscar');
+  const inputMonto = document.getElementById('ventaMontoRecibido');
+  const btnGuardar = document.getElementById('btnGuardarVenta');
+  const btnCancelar = document.getElementById('btnCancelarVenta');
+
+  if (inputBuscar) inputBuscar.addEventListener('input', renderProductosDisponiblesVenta);
+  if (inputMonto) inputMonto.addEventListener('input', calcularCambioVenta);
+  if (btnGuardar) btnGuardar.addEventListener('click', guardarVenta);
+  if (btnCancelar) btnCancelar.addEventListener('click', cerrarModal);
+
+  renderProductosDisponiblesVenta();
+  renderVentaProductosSeleccionados();
+  calcularTotalVenta();
 }
 
-function actualizarInfoProductoVenta() {
-  const select = document.getElementById('ventaProductoSelect');
-  const infoDiv = document.getElementById('ventaInfoProducto');
-  const cantInput = document.getElementById('ventaCantidad');
-  if (!select || !select.value) { if (infoDiv) infoDiv.style.display = 'none'; return; }
-  const opt = select.options[select.selectedIndex];
-  const precio = parseFloat(opt.dataset.precio) || 0;
-  const stock = parseInt(opt.dataset.stock, 10) || 0;
-  document.getElementById('ventaPrecioUnitario').textContent = `$${precio.toFixed(2)}`;
-  document.getElementById('ventaStockDisponible').textContent = stock;
-  cantInput.max = stock;
-  if (parseInt(cantInput.value, 10) > stock) cantInput.value = stock;
-  infoDiv.style.display = 'block';
+function renderProductosDisponiblesVenta() {
+  const container = document.getElementById('ventaProductosDisponibles');
+  const searchTerm = (document.getElementById('ventaProductoBuscar')?.value || '').trim().toLowerCase();
+  if (!container) return;
+
+  const disponibles = _ventaProductosCatalogo
+    .filter(p => !_ventaLineItems.some(item => item.id === p.id))
+    .filter(p => {
+      if (!searchTerm) return true;
+      return (p.nombre || '').toLowerCase().includes(searchTerm) || `${p.precio}`.includes(searchTerm);
+    });
+
+  if (disponibles.length === 0) {
+    container.innerHTML = `<p style="color:#6b7280;font-size:14px;padding:14px;background:#f8fafb;border-radius:10px;text-align:center;">No hay productos disponibles para agregar.</p>`;
+    return;
+  }
+
+  container.innerHTML = disponibles.map(p => `
+    <div class="venta-producto-card">
+      <div>
+        <strong>${p.nombre}</strong>
+        <span style="display:block;margin-top:4px;font-size:13px;color:#6b7280;">$${Number(p.precio).toFixed(2)} · Stock: ${p.stock}</span>
+      </div>
+      <button type="button" class="btn-secondary" ${parseInt(p.stock, 10) <= 0 ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''} onclick="agregarProductoAVenta('${p.id}')">
+        ${parseInt(p.stock, 10) <= 0 ? 'Agotado' : 'Agregar'}
+      </button>
+    </div>`).join('');
+}
+
+function agregarProductoAVenta(productoId) {
+  const producto = _ventaProductosCatalogo.find(p => p.id === productoId);
+  if (!producto) return;
+  _ventaLineItems.push({
+    id: producto.id,
+    nombre: producto.nombre || '',
+    precioUnitario: parseFloat(producto.precio) || 0,
+    stock: parseInt(producto.stock, 10) || 0,
+    cantidad: 1,
+  });
+  renderProductosDisponiblesVenta();
+  renderVentaProductosSeleccionados();
+  calcularTotalVenta();
+}
+
+function renderVentaProductosSeleccionados() {
+  const container = document.getElementById('ventaProductosSeleccionados');
+  if (!container) return;
+  if (_ventaLineItems.length === 0) {
+    container.innerHTML = `<p style="color:#6b7280;font-size:14px;padding:14px;background:#f8fafb;border-radius:10px;text-align:center;">Aún no se ha seleccionado ningún producto.</p>`;
+    return;
+  }
+
+  container.innerHTML = `
+    <table class="venta-selected-table">
+      <thead>
+        <tr>
+          <th>Producto</th>
+          <th>Precio</th>
+          <th>Cantidad</th>
+          <th>Subtotal</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        ${_ventaLineItems.map(item => `
+          <tr>
+            <td>${item.nombre}</td>
+            <td>$${item.precioUnitario.toFixed(2)}</td>
+            <td>
+              <input type="number" min="1" max="${item.stock}" value="${item.cantidad}" onchange="actualizarCantidadProductoVenta('${item.id}', this.value)" style="width:72px;padding:8px;border:1px solid #d1d5db;border-radius:8px;text-align:center;">
+            </td>
+            <td>$${(item.precioUnitario * item.cantidad).toFixed(2)}</td>
+            <td><button type="button" class="btn-action btn-delete" onclick="eliminarProductoVenta('${item.id}')">Quitar</button></td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>`;
+}
+
+function actualizarCantidadProductoVenta(productoId, cantidad) {
+  const item = _ventaLineItems.find(i => i.id === productoId);
+  if (!item) return;
+  const cant = Math.max(1, Math.min(parseInt(cantidad, 10) || 1, item.stock));
+  item.cantidad = cant;
+  renderVentaProductosSeleccionados();
+  calcularTotalVenta();
+}
+
+function eliminarProductoVenta(productoId) {
+  _ventaLineItems = _ventaLineItems.filter(item => item.id !== productoId);
+  renderProductosDisponiblesVenta();
+  renderVentaProductosSeleccionados();
   calcularTotalVenta();
 }
 
 function calcularTotalVenta() {
-  const select = document.getElementById('ventaProductoSelect');
-  const cantInput = document.getElementById('ventaCantidad');
   const totalEl = document.getElementById('ventaTotal');
-  if (!select || !select.value || !cantInput || !totalEl) return;
-  const precio = parseFloat(select.options[select.selectedIndex].dataset.precio) || 0;
-  const cant   = parseInt(cantInput.value, 10) || 0;
-  totalEl.textContent = `$${(precio * cant).toFixed(2)}`;
+  if (!totalEl) return;
+  const total = _ventaLineItems.reduce((sum, item) => sum + item.precioUnitario * item.cantidad, 0);
+  totalEl.textContent = `$${total.toFixed(2)}`;
   calcularCambioVenta();
 }
 
@@ -2057,7 +2469,10 @@ function calcularCambioVenta() {
   if (!totalEl || !montoInput || !cambioEl) return;
   const total = parseFloat(totalEl.textContent.replace('$', '')) || 0;
   const monto = parseFloat(montoInput.value) || 0;
-  if (monto <= 0) { if (cambioBox) cambioBox.style.display = 'none'; return; }
+  if (monto <= 0) {
+    if (cambioBox) cambioBox.style.display = 'none';
+    return;
+  }
   const cambio = monto - total;
   if (cambioBox) {
     cambioBox.style.display = 'block';
@@ -2068,10 +2483,14 @@ function calcularCambioVenta() {
   cambioEl.textContent = cambio < 0 ? `-$${Math.abs(cambio).toFixed(2)}` : `$${cambio.toFixed(2)}`;
 }
 
+function actualizarInfoProductoVenta() {
+  // Mantener compatibilidad con llamadas antiguas.
+  // El formulario de ventas actual usa selección directa de productos y cantidades por línea.
+  calcularTotalVenta();
+}
+
 async function guardarVenta() {
   const clienteNombre    = (document.getElementById('ventaClienteNombre')?.value || '').trim();
-  const select           = document.getElementById('ventaProductoSelect');
-  const cantInput        = document.getElementById('ventaCantidad');
   const montoInput       = document.getElementById('ventaMontoRecibido');
   const totalEl          = document.getElementById('ventaTotal');
   const btn              = document.getElementById('btnGuardarVenta');
@@ -2081,22 +2500,20 @@ async function guardarVenta() {
     if (el) { el.textContent = msg; el.style.display = 'block'; }
   };
 
-  if (!clienteNombre)           { mostrarError('El nombre del cliente es obligatorio.'); return; }
-  if (!select || !select.value) { mostrarError('Selecciona un producto.'); return; }
-  const cant = parseInt(cantInput?.value, 10) || 0;
-  if (cant <= 0)                { mostrarError('La cantidad debe ser mayor a 0.'); return; }
+  if (!clienteNombre) { mostrarError('El nombre del cliente es obligatorio.'); return; }
+  if (_ventaLineItems.length === 0) { mostrarError('Agrega al menos un producto.'); return; }
 
-  const opt            = select.options[select.selectedIndex];
-  const productoId     = select.value;
-  const productoNombre = opt.text.split(' —')[0].trim();
-  const precioUnitario = parseFloat(opt.dataset.precio) || 0;
-  const stockActual    = parseInt(opt.dataset.stock, 10) || 0;
-  const total          = parseFloat(totalEl?.textContent.replace('$', '')) || 0;
-  const montoRecibido  = parseFloat(montoInput?.value) || 0;
+  const total         = _ventaLineItems.reduce((sum, item) => sum + item.precioUnitario * item.cantidad, 0);
+  const montoRecibido = parseFloat(montoInput?.value) || 0;
 
-  if (cant > stockActual)       { mostrarError(`Stock insuficiente. Solo hay ${stockActual} unidad(es) disponible(s).`); return; }
-  if (montoRecibido <= 0)       { mostrarError('Ingresa el monto recibido.'); return; }
-  if (montoRecibido < total)    { mostrarError(`El monto recibido ($${montoRecibido.toFixed(2)}) es menor al total ($${total.toFixed(2)}).`); return; }
+  if (montoRecibido <= 0)    { mostrarError('Ingresa el monto recibido.'); return; }
+  if (montoRecibido < total) { mostrarError(`El monto recibido ($${montoRecibido.toFixed(2)}) es menor al total ($${total.toFixed(2)}).`); return; }
+
+  const productosConStockInsuficiente = _ventaLineItems.filter(item => item.cantidad > item.stock);
+  if (productosConStockInsuficiente.length > 0) {
+    mostrarError(`Stock insuficiente para ${productosConStockInsuficiente[0].nombre}. Ajusta la cantidad.`);
+    return;
+  }
 
   const cambio = montoRecibido - total;
   btn.disabled = true;
@@ -2106,12 +2523,25 @@ async function guardarVenta() {
   try {
     const now = new Date();
     const ventaData = {
-      clienteNombre, productoId, productoNombre, precioUnitario,
-      cantidad: cant, total, montoRecibido, cambio,
-      fecha: now.toISOString(), createdAt: now.toISOString(),
+      clienteNombre,
+      lineItems: _ventaLineItems.map(item => ({
+        productoId: item.id,
+        nombre: item.nombre,
+        precioUnitario: item.precioUnitario,
+        cantidad: item.cantidad,
+        subtotal: item.precioUnitario * item.cantidad,
+      })),
+      total,
+      montoRecibido,
+      cambio,
+      fecha: now.toISOString(),
+      createdAt: now.toISOString(),
     };
+
     const ventaRef = await addDoc(collection(db, 'ventas'), ventaData);
-    await updateDoc(doc(db, 'productos', productoId), { stock: stockActual - cant });
+    await Promise.all(_ventaLineItems.map(item =>
+      updateDoc(doc(db, 'productos', item.id), { stock: item.stock - item.cantidad })
+    ));
     await generarTicketVentaPDF(ventaRef.id, ventaData);
     cerrarModal();
     cargarVentas();
@@ -2128,7 +2558,11 @@ async function generarTicketVentaPDF(ventaId, venta) {
   try {
     const { jsPDF } = window.jspdf;
     const PW = 80;
-    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [PW, 160] });
+    const items = Array.isArray(venta.lineItems) && venta.lineItems.length > 0
+      ? venta.lineItems
+      : [{ nombre: venta.productoNombre || 'Producto', cantidad: venta.cantidad || 1, precioUnitario: venta.precioUnitario || 0 }];
+    const ticketHeight = Math.max(160, 160 + items.length * 7);
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [PW, ticketHeight] });
 
     const fechaObj = new Date(venta.fecha);
     const fechaStr = fechaObj.toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' });
@@ -2166,13 +2600,18 @@ async function generarTicketVentaPDF(ventaId, venta) {
 
     doc.line(5, y, PW - 5, y); y += 5;
 
-    // Product detail
+    // Productos
     doc.setFont(undefined, 'bold');
-    doc.text('PRODUCTO:', 5, y); y += 4;
+    doc.text('PRODUCTOS:', 5, y); y += 4;
     doc.setFont(undefined, 'normal');
-    const nombreLines = doc.splitTextToSize(venta.productoNombre, PW - 10);
-    doc.text(nombreLines, 5, y); y += nombreLines.length * 4 + 1;
-    doc.text(`${venta.cantidad} unidad(es)  x  $${venta.precioUnitario.toFixed(2)} c/u`, 5, y); y += 6;
+    items.forEach(item => {
+      const itemNameLines = doc.splitTextToSize(item.nombre, PW - 10);
+      doc.text(itemNameLines, 5, y);
+      y += itemNameLines.length * 4;
+      doc.text(`${item.cantidad} x $${item.precioUnitario.toFixed(2)}`, 5, y);
+      doc.text(`$${(item.cantidad * item.precioUnitario).toFixed(2)}`, PW - 5, y, { align: 'right' });
+      y += 5;
+    });
 
     doc.line(5, y, PW - 5, y); y += 5;
 
@@ -3015,7 +3454,33 @@ async function generarReportePDFDiario() {
   }
 }
 
-async function generarTicketPDF(reservaId, reservaData, roomData, huespedesIds, nombrePrincipal, telefonoPrincipal) {
+async function guardarTicketPersistente(ticketData, reservaId, ticketIdToReplace = null) {
+  try {
+    const ticketRef = doc(db, 'tickets', reservaId);
+    await setDoc(ticketRef, {
+      ...ticketData,
+      reservaId,
+      actualizado: new Date()
+    });
+  } catch (error) {
+    console.warn('No se pudo guardar el ticket en la colección tickets:', error);
+  }
+
+  try {
+    await updateDoc(doc(db, 'reservas', reservaId), {
+      ticketData: {
+        ...ticketData,
+        creado: ticketData.creado || new Date()
+      },
+      ticketUpdatedAt: new Date(),
+      ticketVisible: true
+    });
+  } catch (error) {
+    console.warn('No se pudo guardar el ticket en la reserva:', error);
+  }
+}
+
+async function generarTicketPDF(reservaId, reservaData, roomData, huespedesIds, nombrePrincipal, telefonoPrincipal, ticketIdToReplace = null) {
   try {
     const { jsPDF } = window.jspdf;
     
@@ -3090,20 +3555,39 @@ async function generarTicketPDF(reservaId, reservaData, roomData, huespedesIds, 
     doc.text(`Noches: ${reservaData.noches}`, 5, yPos);
     yPos += 3;
     doc.text(`Precio/Noche: $${parseFloat(reservaData.precioNoche).toFixed(2)}`, 5, yPos);
+    yPos += 3;
+    const totalOriginal = parseFloat(reservaData.totalOriginal || reservaData.total || 0);
+    const anticipo = parseFloat(reservaData.total || 0);
+    const porcentajePago = parseInt(reservaData.porcentajePago || 100, 10);
+    const pendiente = Math.max(0, totalOriginal - anticipo);
+    doc.text(`Total original: $${totalOriginal.toFixed(2)}`, 5, yPos);
+    yPos += 4;
+    doc.text(`Anticipo (${porcentajePago}%): $${anticipo.toFixed(2)}`, 5, yPos);
+    yPos += 4;
+    doc.text(`Pendiente: $${pendiente.toFixed(2)}`, 5, yPos);
     yPos += 5;
     
-    // Total
+    if (pendiente > 0) {
+      doc.setFont(undefined, 'bold');
+      doc.text(`SALDO PENDIENTE: $${pendiente.toFixed(2)}`, 5, yPos);
+      yPos += 5;
+      doc.setFont(undefined, 'normal');
+    }
+    
+    // Total pagado
     doc.setFillColor(230, 245, 230);
     doc.rect(5, yPos - 2, pageWidth - 10, 8, 'F');
     doc.setFont(undefined, 'bold');
     doc.setFontSize(9);
-    doc.text(`TOTAL: $${parseFloat(reservaData.total).toFixed(2)}`, pageWidth / 2, yPos + 2, { align: 'center' });
+    doc.text(`PAGADO: $${anticipo.toFixed(2)}`, pageWidth / 2, yPos + 2, { align: 'center' });
     yPos += 10;
     
     // Tipo de pago
     doc.setFontSize(8);
     doc.setFont(undefined, 'normal');
-    doc.text(`Pago: ${reservaData.paymentMethod}`, pageWidth / 2, yPos, { align: 'center' });
+    doc.text(`Tipo reserva: ${reservaData.tipoReserva || '—'}`, pageWidth / 2, yPos, { align: 'center' });
+    yPos += 4;
+    doc.text(`Medio: ${reservaData.paymentMethod}`, pageWidth / 2, yPos, { align: 'center' });
     yPos += 4;
     
     // Fecha de generación
@@ -3115,8 +3599,8 @@ async function generarTicketPDF(reservaId, reservaData, roomData, huespedesIds, 
     // Guardar en Firestore
     const ticketData = {
       reservaId: reservaId,
-      nombreHuesped: nombrePrincipal,
-      telefonoHuesped: telefonoPrincipal,
+      nombreHuesped: nombrePrincipal || reservaData.guestName || 'Sin nombre',
+      telefonoHuesped: telefonoPrincipal || '',
       numeroHabitacion: roomData.numero,
       tipoHabitacion: roomData.tipo,
       capacidadHabitacion: roomData.capacidad,
@@ -3125,17 +3609,26 @@ async function generarTicketPDF(reservaId, reservaData, roomData, huespedesIds, 
       noches: reservaData.noches,
       precioNoche: reservaData.precioNoche,
       total: reservaData.total,
+      totalOriginal: reservaData.totalOriginal || reservaData.total,
+      restante: reservaData.restante || 0,
+      restantePagado: reservaData.restantePagado || false,
       tipoPago: reservaData.paymentMethod,
       tipoReserva: reservaData.tipoReserva,
+      paymentProofUrl: reservaData.paymentProofUrl || null,
       creado: new Date()
     };
-    
-    await addDoc(collection(db, 'tickets'), ticketData);
-    
+
+    await guardarTicketPersistente(ticketData, reservaId, ticketIdToReplace);
+
+    const ticketsSection = document.getElementById('tickets');
+    if (ticketsSection && ticketsSection.classList.contains('active')) {
+      await cargarTickets();
+    }
+
     // Descargar PDF automáticamente
     const timestamp = ahora.toISOString().replace(/[:.]/g, '-').substring(0, 19);
     doc.save(`Ticket_${nombrePrincipal.replace(/\s+/g, '_')}_${timestamp}.pdf`);
-    
+
   } catch (error) {
     console.error('Error generando ticket PDF:', error);
   }
@@ -3143,15 +3636,49 @@ async function generarTicketPDF(reservaId, reservaData, roomData, huespedesIds, 
 
 async function cargarTickets() {
   try {
-    const ticketsSnap = await getDocs(query(collection(db, 'tickets'), orderBy('creado', 'desc')));
-    
     const ticketsContent = document.getElementById('ticketsContent');
-    
-    if (ticketsSnap.empty) {
+
+    const [reservasSnap, ticketsSnap] = await Promise.all([
+      getDocs(query(collection(db, 'reservas'), orderBy('ticketUpdatedAt', 'desc'))),
+      getDocs(query(collection(db, 'tickets'), orderBy('creado', 'desc')))
+    ]);
+
+    const items = [];
+
+    reservasSnap.docs.forEach(reservaDoc => {
+      const reservaData = reservaDoc.data();
+      if (!reservaData.ticketData) return;
+      items.push({
+        id: reservaDoc.id,
+        source: 'reserva',
+        data: reservaData.ticketData,
+        reserva: reservaData,
+        createdAt: reservaData.ticketUpdatedAt || reservaData.actualizado || reservaData.creado || null
+      });
+    });
+
+    ticketsSnap.docs.forEach(ticketDoc => {
+      const ticketData = ticketDoc.data();
+      if (!ticketData || !ticketData.nombreHuesped) return;
+      items.push({
+        id: ticketDoc.id,
+        source: 'ticket',
+        data: ticketData,
+        createdAt: ticketData.creado || null
+      });
+    });
+
+    items.sort((a, b) => {
+      const aTime = a.createdAt && a.createdAt.toDate ? a.createdAt.toDate().getTime() : new Date(a.createdAt || 0).getTime();
+      const bTime = b.createdAt && b.createdAt.toDate ? b.createdAt.toDate().getTime() : new Date(b.createdAt || 0).getTime();
+      return bTime - aTime;
+    });
+
+    if (!items.length) {
       ticketsContent.innerHTML = '<p>No hay tickets generados aún.</p>';
       return;
     }
-    
+
     let html = `
       <div style="margin-bottom: 15px;">
         <button class="btn-primary" onclick="location.reload()">🔄 Actualizar</button>
@@ -3165,41 +3692,46 @@ async function cargarTickets() {
               <th style="padding: 10px; text-align: left;">Check-in</th>
               <th style="padding: 10px; text-align: left;">Check-out</th>
               <th style="padding: 10px; text-align: center;">Total</th>
+              <th style="padding: 10px; text-align: center;">Comprobantes</th>
               <th style="padding: 10px; text-align: center;">Acciones</th>
             </tr>
           </thead>
           <tbody>
     `;
-    
-    ticketsSnap.forEach(doc => {
-      const t = doc.data();
-      const checkInDate = fmtFecha(t.checkIn);
-      const checkOutDate = fmtFecha(t.checkOut);
-      const fechaCreado = t.creado && t.creado.toDate ? t.creado.toDate().toLocaleDateString('es-MX') : new Date(t.creado).toLocaleDateString('es-MX');
-      
+
+    items.forEach(item => {
+      const t = item.data || {};
+      const nombreMostrar = t.nombreHuesped || item.reserva?.guestName || item.reserva?.nombreHuesped || 'Sin nombre';
+      const habitacionMostrar = t.numeroHabitacion || item.reserva?.roomNumber || '—';
+      const tipoHabitacionMostrar = t.tipoHabitacion || item.reserva?.tipoHab || '—';
+      const totalMostrar = Number(t.total ?? item.reserva?.total ?? 0);
+      const checkInDate = fmtFecha(t.checkIn || item.reserva?.checkIn);
+      const checkOutDate = fmtFecha(t.checkOut || item.reserva?.checkOut);
+      const fechaCreado = (t.creado && t.creado.toDate ? t.creado.toDate() : new Date(t.creado || item.createdAt || Date.now())).toLocaleDateString('es-MX');
+
       html += `
         <tr style="border-bottom: 1px solid #ddd;">
-          <td style="padding: 10px;">${t.nombreHuesped}</td>
-          <td style="padding: 10px;">${t.numeroHabitacion} (${t.tipoHabitacion})</td>
+          <td style="padding: 10px;">${nombreMostrar}</td>
+          <td style="padding: 10px;">${habitacionMostrar} (${tipoHabitacionMostrar})</td>
           <td style="padding: 10px;">${checkInDate}</td>
           <td style="padding: 10px;">${checkOutDate}</td>
-          <td style="padding: 10px; text-align: center; font-weight: bold;">$${parseFloat(t.total).toFixed(2)}</td>
+          <td style="padding: 10px; text-align: center; font-weight: bold;">$${totalMostrar.toFixed(2)}</td>
+          <td style="padding: 10px; text-align: center;">${t.paymentProofUrl ? `<a class="btn-action btn-download" href="${t.paymentProofUrl}" target="_blank" rel="noreferrer noopener">Descargar</a>` : '—'}</td>
           <td style="padding: 10px; text-align: center;">
-            <button class="btn-primary" style="padding: 6px 12px; font-size: 12px; margin: 0 2px;" onclick="descargarTicket('${doc.id}', '${t.nombreHuesped}', '${fechaCreado}')">📥 Descargar</button>
-            <button class="btn-action btn-delete" style="padding: 6px 12px; font-size: 12px; margin: 0 2px;" onclick="eliminarTicket('${doc.id}')">🗑️ Eliminar</button>
+            <button class="btn-primary" style="padding: 6px 12px; font-size: 12px; margin: 0 2px;" onclick="descargarTicket('${item.id}', '${nombreMostrar}', '${fechaCreado}')">📥 Descargar</button>
+            <button class="btn-action btn-delete" style="padding: 6px 12px; font-size: 12px; margin: 0 2px;" onclick="eliminarTicket('${item.id}')">🗑️ Eliminar</button>
           </td>
         </tr>
       `;
     });
-    
+
     html += `
           </tbody>
         </table>
       </div>
     `;
-    
+
     ticketsContent.innerHTML = html;
-    
   } catch (error) {
     console.error('Error cargando tickets:', error);
     document.getElementById('ticketsContent').innerHTML = `<p style="color: red;">Error al cargar tickets: ${error.message}</p>`;
@@ -3208,14 +3740,22 @@ async function cargarTickets() {
 
 async function descargarTicket(ticketId, nombreHuesped, fechaCreado) {
   try {
+    let t = null;
     const ticketDoc = await getDoc(doc(db, 'tickets', ticketId));
-    
-    if (!ticketDoc.exists()) {
+    if (ticketDoc.exists()) {
+      t = ticketDoc.data();
+    } else {
+      const reservaDoc = await getDoc(doc(db, 'reservas', ticketId));
+      if (reservaDoc.exists()) {
+        t = reservaDoc.data().ticketData || null;
+      }
+    }
+
+    if (!t) {
       alert('Ticket no encontrado');
       return;
     }
-    
-    const t = ticketDoc.data();
+
     const { jsPDF } = window.jspdf;
     
     // Formato ticket (ancho: 80mm, alto: 150mm)
@@ -3322,7 +3862,14 @@ async function descargarTicket(ticketId, nombreHuesped, fechaCreado) {
 async function eliminarTicket(ticketId) {
   if (!confirm('¿Estás seguro de que deseas eliminar este ticket? Esta acción no se puede deshacer.')) return;
   try {
-    await deleteDoc(doc(db, 'tickets', ticketId));
+    const ticketDoc = await getDoc(doc(db, 'tickets', ticketId));
+    if (ticketDoc.exists()) {
+      await deleteDoc(doc(db, 'tickets', ticketId));
+    }
+    await updateDoc(doc(db, 'reservas', ticketId), {
+      ticketData: null,
+      ticketUpdatedAt: new Date()
+    }).catch(() => {});
     cargarTickets();
   } catch (error) {
     console.error('Error eliminando ticket:', error);
@@ -3370,10 +3917,12 @@ window.cerrarCaja = cerrarCaja;
 window.calcularTotalIngresosDia = calcularTotalIngresosDia;
 window.generarReportePDFDiario = generarReportePDFDiario;
 window.mostrarCampoEfectivo = mostrarCampoEfectivo;
+window.mostrarCampoPagoHuesped = mostrarCampoPagoHuesped;
 window.calcularCambio = calcularCambio;
 window.generarTicketPDF = generarTicketPDF;
 window.cargarTickets = cargarTickets;
 window.descargarTicket = descargarTicket;
+window.descargarComprobanteReserva = descargarComprobanteReserva;
 window.eliminarTicket = eliminarTicket;
 window.filtrarHuespedes = filtrarHuespedes;
 window.cargarVentas = cargarVentas;
@@ -3386,6 +3935,11 @@ window.actualizarInfoProductoVenta = actualizarInfoProductoVenta;
 window.calcularTotalVenta = calcularTotalVenta;
 window.calcularCambioVenta = calcularCambioVenta;
 window.guardarVenta = guardarVenta;
+window.renderProductosDisponiblesVenta = renderProductosDisponiblesVenta;
+window.agregarProductoAVenta = agregarProductoAVenta;
+window.renderVentaProductosSeleccionados = renderVentaProductosSeleccionados;
+window.actualizarCantidadProductoVenta = actualizarCantidadProductoVenta;
+window.eliminarProductoVenta = eliminarProductoVenta;
 window.mostrarHistorialVentas = mostrarHistorialVentas;
 window.verTicketHistorial = verTicketHistorial;
 

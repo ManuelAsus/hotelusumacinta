@@ -573,6 +573,57 @@ body {
   min-height: 84px;
 }
 
+.venta-productos-buscar {
+  width: 100%;
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  font-size: 14px;
+}
+
+.venta-productos-list {
+  display: grid;
+  gap: 10px;
+  max-height: 280px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.venta-producto-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  background: #f8fafb;
+  gap: 12px;
+}
+
+.venta-selected-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.venta-selected-table th,
+.venta-selected-table td {
+  padding: 10px 8px;
+  border-bottom: 1px solid #e5e7eb;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.venta-selected-table th {
+  font-weight: 700;
+  color: #374151;
+}
+
+.venta-selected-table td:last-child {
+  text-align: center;
+}
+
 .modal-actions {
   display: flex;
   justify-content: flex-end;
