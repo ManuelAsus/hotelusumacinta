@@ -392,6 +392,229 @@
       text-align: center;
     }
 
+    .calendario-shell {
+      display: grid;
+      gap: 16px;
+    }
+
+    .calendario-toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      padding: 14px 16px;
+      border: 1px solid #e5e7eb;
+      border-radius: 14px;
+      background: linear-gradient(135deg, #fdfcf7 0%, #f7f4ea 100%);
+      box-shadow: 0 4px 12px rgba(53, 70, 42, 0.06);
+    }
+
+    .calendario-nav-btn {
+      border: none;
+      background: linear-gradient(135deg, #35462A, #5FAB67);
+      color: white;
+      padding: 8px 12px;
+      border-radius: 999px;
+      cursor: pointer;
+      font-weight: 700;
+      box-shadow: 0 3px 8px rgba(53, 70, 42, 0.16);
+    }
+
+    .calendario-summary {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 8px;
+    }
+
+    .calendario-summary-card {
+      border: 1px solid #e5e7eb;
+      background: white;
+      border-radius: 12px;
+      padding: 10px 12px;
+      min-width: 140px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    }
+
+    .calendario-summary-card strong {
+      display: block;
+      font-size: 16px;
+      color: #2f5230;
+      margin-bottom: 2px;
+    }
+
+    .calendario-summary-card span {
+      font-size: 12px;
+      color: #6b7280;
+    }
+
+    .calendario-legend {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      font-size: 12px;
+      color: #4b5563;
+    }
+
+    .calendario-legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .calendario-legend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    .calendario-grid {
+      display: grid;
+      grid-template-columns: repeat(7, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .calendario-grid-header {
+      font-size: 12px;
+      font-weight: 700;
+      color: #6b7280;
+      text-align: center;
+      padding-bottom: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .calendario-dia {
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      min-height: 110px;
+      padding: 8px;
+      background: #fff;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      box-shadow: 0 2px 8px rgba(15, 23, 42, 0.03);
+    }
+
+    .calendario-dia-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .calendario-dia-number {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      border-radius: 999px;
+      background: #f3f4f6;
+      color: #374151;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .calendario-dia-hoy .calendario-dia-number {
+      background: #35462A;
+      color: white;
+    }
+
+    .calendario-dia-disponible {
+      background: #f8faf7;
+      border-color: #dcebd2;
+    }
+
+    .calendario-dia-ocupado {
+      background: #fff9eb;
+      border-color: #f2d79a;
+    }
+
+    .calendario-chip {
+      font-size: 10px;
+      padding: 3px 7px;
+      border-radius: 999px;
+      font-weight: 700;
+      display: inline-block;
+      width: fit-content;
+      line-height: 1.2;
+    }
+
+    .calendario-chip-disponible {
+      background: #e8f5e9;
+      color: #2f5230;
+    }
+
+    .calendario-chip-ocupado {
+      background: #fef3c7;
+      color: #92400e;
+    }
+
+    .calendario-chip-hotel {
+      background: #dbeafe;
+      color: #1d4ed8;
+    }
+
+    .calendario-mini-list {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    .calendario-mini-item {
+      font-size: 10px;
+      color: #4b5563;
+      line-height: 1.3;
+      padding: 4px 6px;
+      background: rgba(255,255,255,0.7);
+      border-radius: 8px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .calendario-empty-cell {
+      font-size: 10px;
+      color: #9ca3af;
+      padding: 4px 6px;
+      border-radius: 8px;
+      background: rgba(255,255,255,0.5);
+    }
+
+    .calendario-lista {
+      display: grid;
+      gap: 10px;
+      margin-top: 4px;
+    }
+
+    .calendario-item {
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 12px 14px;
+      background: white;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.03);
+    }
+
+    .calendario-item-title {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 6px;
+    }
+
+    .calendario-item-meta {
+      margin-top: 4px;
+      font-size: 13px;
+      color: #4b5563;
+    }
+
     @media (max-width: 768px) {
       .sidebar { width: 100%; height: auto; position: relative; }
       .main-content { margin-left: 0; }
@@ -413,6 +636,7 @@
       </div>
       <nav class="nav-menu">
         <button class="nav-item active" data-section="inicio"><i class="fas fa-house"></i> Inicio</button>
+        <button class="nav-item" data-section="calendario"><i class="fas fa-calendar-alt"></i> Calendario</button>
         <button class="nav-item" data-section="huespedes"><i class="fas fa-users"></i> Huéspedes</button>
         <button class="nav-item" data-section="habitaciones"><i class="fas fa-bed"></i> Habitaciones</button>
         <button class="nav-item" data-section="ventas"><i class="fas fa-store"></i> Ventas</button>
@@ -510,6 +734,14 @@
           <div id="actividadReciente" class="activity-log">
             <div class="empty-message">Cargando actividad...</div>
           </div>
+        </div>
+      </div>
+
+      <!-- Sección Calendario -->
+      <div id="calendario" class="content-section">
+        <div class="content-card">
+          <h2><i class="fas fa-calendar-alt" style="color:#C1A44D"></i> Calendario de ocupación</h2>
+          <div id="calendarioContent"></div>
         </div>
       </div>
 

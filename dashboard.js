@@ -141,11 +141,189 @@ function cambiarSeccion(section) {
     cargarVentas();
   } else if (section === 'reservas') {
     cargarReservas();
+  } else if (section === 'calendario') {
+    cargarCalendario();
   } else if (section === 'tickets') {
     cargarTickets();
   } else if (section === 'caja') {
     cargarCaja();
   }
+}
+
+let calendarioMesActual = new Date();
+
+function obtenerFechaNormalizada(value) {
+  if (!value) return null;
+  if (value.toDate) return new Date(value.toDate());
+  if (value instanceof Date) return new Date(value.getFullYear(), value.getMonth(), value.getDate());
+  const parsed = new Date(value);
+  if (!Number.isNaN(parsed.getTime())) {
+    return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
+  }
+  return null;
+}
+
+function formatearFechaCorta(value) {
+  if (!value) return '—';
+  try {
+    return new Date(value).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' });
+  } catch (e) {
+    return '—';
+  }
+}
+
+function moverCalendario(delta) {
+  calendarioMesActual = new Date(calendarioMesActual.getFullYear(), calendarioMesActual.getMonth() + delta, 1);
+  renderCalendario();
+}
+
+async function cargarCalendario() {
+  const container = document.getElementById('calendarioContent');
+  if (!container) return;
+
+  container.innerHTML = '<div class="empty-message"><i class="fas fa-spinner fa-spin"></i> Cargando calendario...</div>';
+
+  try {
+    const reservasSnap = await getDocs(query(collection(db, 'reservas'), orderBy('checkIn', 'asc')));
+    const hoy = new Date();
+    const reservas = reservasSnap.docs.map(docSnap => {
+      const data = docSnap.data();
+      const start = obtenerFechaNormalizada(data.checkIn);
+      const end = obtenerFechaNormalizada(data.checkOut);
+      return {
+        id: docSnap.id,
+        ...data,
+        start,
+        end,
+        esActual: start && end && start <= hoy && hoy < end && (data.status || 'Confirmada') !== 'Cancelada'
+      };
+    }).filter(item => item.start && item.end);
+
+    renderCalendario(reservas);
+  } catch (error) {
+    console.error('Error cargando calendario', error);
+    container.innerHTML = '<div class="empty-message">No se pudo cargar el calendario.</div>';
+  }
+}
+
+function renderCalendario(reservas = []) {
+  const container = document.getElementById('calendarioContent');
+  if (!container) return;
+
+  const hoy = new Date();
+  const year = calendarioMesActual.getFullYear();
+  const month = calendarioMesActual.getMonth();
+  const monthLabel = calendarioMesActual.toLocaleDateString('es-MX', { month: 'long', year: 'numeric' });
+  const reservasActuales = reservas.filter(item => item.esActual).length;
+  const reservasProgramadas = reservas.filter(item => !item.esActual).length;
+  const primerDia = new Date(year, month, 1);
+  const ultimoDia = new Date(year, month + 1, 0);
+  const diasEnMes = ultimoDia.getDate();
+  const primerDiaSemana = (primerDia.getDay() + 6) % 7;
+  const dias = [];
+
+  for (let i = 0; i < primerDiaSemana; i += 1) {
+    dias.push(null);
+  }
+
+  for (let day = 1; day <= diasEnMes; day += 1) {
+    dias.push(new Date(year, month, day));
+  }
+
+  while (dias.length % 7 !== 0) {
+    dias.push(null);
+  }
+
+  const encabezados = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+
+  const celdas = dias.map((dia) => {
+    if (!dia) {
+      return '<div class="calendario-dia" style="background:#f9fafb;border-style:dashed;"></div>';
+    }
+
+    const fechaDia = new Date(dia.getFullYear(), dia.getMonth(), dia.getDate());
+    const eventos = reservas.filter(item => {
+      if (!item.start || !item.end) return false;
+      return fechaDia >= item.start && fechaDia < item.end;
+    });
+
+    const esHoy = fechaDia.toDateString() === hoy.toDateString();
+    const clase = eventos.length > 0 ? 'calendario-dia-ocupado' : 'calendario-dia-disponible';
+    const chip = eventos.length > 0
+      ? `<span class="calendario-chip calendario-chip-ocupado">${eventos.length > 1 ? `+${eventos.length}` : (eventos[0].esActual ? 'Huésped' : 'Reserva')}</span>`
+      : `<span class="calendario-chip calendario-chip-disponible">Disponible</span>`;
+
+    const resumen = eventos.slice(0, 2).map(evento => {
+      const nombre = evento.guestName || 'Cliente';
+      const habitacion = evento.roomNumber || evento.roomId || '—';
+      const tipo = evento.esActual ? 'Hospedado' : 'Reserva';
+      return `<div class="calendario-mini-item">${tipo}: ${nombre} · Hab ${habitacion}</div>`;
+    }).join('');
+
+    return `
+      <div class="calendario-dia ${clase} ${esHoy ? 'calendario-dia-hoy' : ''}">
+        <div class="calendario-dia-top">
+          <span class="calendario-dia-number">${dia.getDate()}</span>
+          ${chip}
+        </div>
+        <div class="calendario-mini-list">
+          ${resumen || '<div class="calendario-empty-cell">Libre para reservar</div>'}
+        </div>
+      </div>`;
+  }).join('');
+
+  const listaEventos = reservas.length > 0 ? reservas.map(item => {
+    const etiqueta = item.esActual ? 'Huésped actual' : 'Reserva';
+    const rango = `${formatearFechaCorta(item.start)} → ${formatearFechaCorta(item.end)}`;
+    return `
+      <div class="calendario-item">
+        <div style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap;">
+          <strong>${item.guestName || 'Sin nombre'}</strong>
+          <span class="calendario-chip ${item.esActual ? 'calendario-chip-hotel' : 'calendario-chip-ocupado'}">${etiqueta}</span>
+        </div>
+        <div style="margin-top:6px;font-size:13px;color:#4b5563;">Habitación: ${item.roomNumber || item.roomId || '—'}</div>
+        <div style="margin-top:2px;font-size:13px;color:#4b5563;">${rango}</div>
+        <div style="margin-top:2px;font-size:12px;color:#6b7280;">Estado: ${item.status || 'Confirmada'}</div>
+      </div>`;
+  }).join('') : '<div class="empty-message">No hay reservas registradas para este mes.</div>';
+
+  container.innerHTML = `
+    <div class="calendario-shell">
+      <div class="calendario-toolbar">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          <button class="calendario-nav-btn" onclick="moverCalendario(-1)"><i class="fas fa-chevron-left"></i></button>
+          <h3 style="margin:0;color:#2f5230;">${monthLabel}</h3>
+          <button class="calendario-nav-btn" onclick="moverCalendario(1)"><i class="fas fa-chevron-right"></i></button>
+        </div>
+        <div class="calendario-legend">
+          <span class="calendario-legend-item"><span class="calendario-legend-dot" style="background:#e8f5e9"></span>Disponible</span>
+          <span class="calendario-legend-item"><span class="calendario-legend-dot" style="background:#fef3c7"></span>Reserva</span>
+          <span class="calendario-legend-item"><span class="calendario-legend-dot" style="background:#dbeafe"></span>Huésped actual</span>
+        </div>
+      </div>
+      <div class="calendario-summary">
+        <div class="calendario-summary-card">
+          <strong>${reservasActuales}</strong>
+          <span>Huéspedes actuales</span>
+        </div>
+        <div class="calendario-summary-card">
+          <strong>${reservasProgramadas}</strong>
+          <span>Reservas programadas</span>
+        </div>
+        <div class="calendario-summary-card">
+          <strong>${reservas.length}</strong>
+          <span>Eventos en el periodo</span>
+        </div>
+      </div>
+      <div class="calendario-grid">
+        ${encabezados.map(dia => `<div class="calendario-grid-header">${dia}</div>`).join('')}
+        ${celdas}
+      </div>
+      <div class="calendario-lista">
+        <h3 style="margin:0;color:#2f5230;">Detalle del periodo</h3>
+        ${listaEventos}
+      </div>
+    </div>`;
 }
 
 // Cargar datos del dashboard
@@ -655,7 +833,7 @@ function actualizarDatosBancarios() {
   const datosTexto = document.getElementById('datosBancariosTexto');
   if (!datosTexto) return;
   if (facturar === 'si') {
-    datosTexto.textContent = 'CLABE interbancaria XXXXXXXX banco XXXXXX';
+    datosTexto.textContent = 'CLABE interbancaria 012796004921167074 banco BBVA';
   } else {
     datosTexto.textContent = 'CLABE interbancaria 012796015605553236 banco BBVA';
   }
@@ -1013,6 +1191,9 @@ async function cargarHabitaciones(search = '', estado = '') {
     const filterTerm = search.trim().toLowerCase();
     const estadoFilter = estado.trim(); // No convertir a lowercase, mantener el valor exacto
     
+    const reservasSnap = await getDocs(query(collection(db, 'reservas'), orderBy('checkIn', 'asc')));
+    const reservas = reservasSnap.docs.map(docRes => ({ id: docRes.id, ...docRes.data() }));
+
     const habitacionesFiltradas = habitaciones.filter(habitacion => {
       const texto = `${habitacion.numero} ${habitacion.tipo} ${habitacion.estado} ${habitacion.descripcion || ''}`.toLowerCase();
       
@@ -1039,13 +1220,45 @@ async function cargarHabitaciones(search = '', estado = '') {
     let html = `
       <table class="users-table">
         <thead>
-          <tr><th>Número</th><th>Tipo</th><th>Capacidad</th><th>Precio/Noche</th><th>Estado</th><th>Amenities</th><th>Acciones</th></tr>
+          <tr>
+            <th>Número</th>
+            <th>Tipo</th>
+            <th>Capacidad</th>
+            <th>Precio/Noche</th>
+            <th>Estado</th>
+            <th>En uso por</th>
+            <th>En uso próximo</th>
+            <th>Amenities</th>
+            <th>Acciones</th>
+          </tr>
         </thead>
         <tbody>
     `;
 
     habitacionesFiltradas.forEach(habitacion => {
-      const estadoClase = habitacion.estado ? habitacion.estado.toLowerCase() : 'disponible';
+      const hoy = new Date();
+      const reservaActual = reservas.find(reserva => {
+        if (!reserva.roomId || reserva.roomId !== habitacion.id) return false;
+        const checkIn = reserva.checkIn && reserva.checkIn.toDate ? reserva.checkIn.toDate() : new Date(reserva.checkIn);
+        const checkOut = reserva.checkOut && reserva.checkOut.toDate ? reserva.checkOut.toDate() : new Date(reserva.checkOut);
+        return checkIn <= hoy && hoy < checkOut && (reserva.status || 'Confirmada') !== 'Cancelada';
+      });
+      const reservaProxima = reservas
+        .filter(reserva => reserva.roomId === habitacion.id && (reserva.status || 'Confirmada') !== 'Cancelada')
+        .sort((a, b) => {
+          const aStart = a.checkIn && a.checkIn.toDate ? a.checkIn.toDate() : new Date(a.checkIn);
+          const bStart = b.checkIn && b.checkIn.toDate ? b.checkIn.toDate() : new Date(b.checkIn);
+          return aStart - bStart;
+        })
+        .find(reserva => {
+          const checkIn = reserva.checkIn && reserva.checkIn.toDate ? reserva.checkIn.toDate() : new Date(reserva.checkIn);
+          const checkOut = reserva.checkOut && reserva.checkOut.toDate ? reserva.checkOut.toDate() : new Date(reserva.checkOut);
+          return checkIn > hoy && checkOut > hoy;
+        });
+      const enUsoPor = reservaActual ? (reservaActual.guestName || '—') : '—';
+      const enUsoProximo = reservaProxima ? `${reservaProxima.guestName || '—'}<br><span style="font-size:11px;color:#6b7280;">${formatDate(reservaProxima.checkIn)} - ${formatDate(reservaProxima.checkOut)}</span>` : '—';
+      const estadoVisible = reservaActual ? 'Ocupada' : 'Disponible';
+      const estadoClase = estadoVisible.toLowerCase();
       const am = habitacion.amenities || {};
       const amenitiesList = [];
       if (am.internet) amenitiesList.push('Internet');
@@ -1061,7 +1274,9 @@ async function cargarHabitaciones(search = '', estado = '') {
           <td>${habitacion.tipo}</td>
           <td>${habitacion.capacidad || '-'}</td>
           <td>$${parseFloat(habitacion.precioNoche || 0).toFixed(2)}</td>
-          <td><span class="status status-${estadoClase}">${habitacion.estado}</span></td>
+          <td><span class="status status-${estadoClase}">${estadoVisible}</span></td>
+          <td>${enUsoPor}</td>
+          <td>${enUsoProximo}</td>
           <td>${amenitiesHtml}</td>
           <td>
             <button class="btn-action btn-edit" onclick="editarHabitacion('${habitacion.id}')">Editar</button>
@@ -2325,7 +2540,7 @@ async function mostrarFormularioVenta() {
           </div>
         </div>
         <div style="grid-column: 1 / -1;">
-          <label>Monto Recibido (MXN) *</label>
+          <label>Monto Recibido (MXN)</label>
           <input type="number" id="ventaMontoRecibido" min="0" step="0.01" placeholder="0.00" ${!hayProductos ? 'disabled' : ''}>
         </div>
         <div id="ventaCambioBox" style="display:none;background:#f0fdf4;padding:14px 18px;border-radius:10px;border:1px solid #bbf7d0;grid-column: 1 / -1;">
@@ -2336,8 +2551,11 @@ async function mostrarFormularioVenta() {
         </div>
       </div>
     </div>
-    <div class="modal-actions">
+    <div class="modal-actions" style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;">
       <button class="btn-secondary" id="btnCancelarVenta">Cancelar</button>
+      <button class="btn-primary" id="btnTicketCocinaVenta" ${!hayProductos ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''}>
+        <i class="fas fa-utensils"></i> Generar ticket para cocina
+      </button>
       <button class="btn-primary" id="btnGuardarVenta" ${!hayProductos ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''}>
         <i class="fas fa-receipt"></i> Guardar y Generar Ticket
       </button>
@@ -2346,11 +2564,13 @@ async function mostrarFormularioVenta() {
   const inputBuscar = document.getElementById('ventaProductoBuscar');
   const inputMonto = document.getElementById('ventaMontoRecibido');
   const btnGuardar = document.getElementById('btnGuardarVenta');
+  const btnTicketCocina = document.getElementById('btnTicketCocinaVenta');
   const btnCancelar = document.getElementById('btnCancelarVenta');
 
   if (inputBuscar) inputBuscar.addEventListener('input', renderProductosDisponiblesVenta);
   if (inputMonto) inputMonto.addEventListener('input', calcularCambioVenta);
-  if (btnGuardar) btnGuardar.addEventListener('click', guardarVenta);
+  if (btnGuardar) btnGuardar.addEventListener('click', () => guardarVenta({ tipoTicket: 'venta' }));
+  if (btnTicketCocina) btnTicketCocina.addEventListener('click', () => guardarVenta({ tipoTicket: 'cocina' }));
   if (btnCancelar) btnCancelar.addEventListener('click', cerrarModal);
 
   renderProductosDisponiblesVenta();
@@ -2376,26 +2596,31 @@ function renderProductosDisponiblesVenta() {
   }
 
   container.innerHTML = disponibles.map(p => `
-    <div class="venta-producto-card">
-      <div>
+    <div class="venta-producto-card" style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
+      <div style="flex:1;">
         <strong>${p.nombre}</strong>
         <span style="display:block;margin-top:4px;font-size:13px;color:#6b7280;">$${Number(p.precio).toFixed(2)} · Stock: ${p.stock}</span>
       </div>
-      <button type="button" class="btn-secondary" ${parseInt(p.stock, 10) <= 0 ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''} onclick="agregarProductoAVenta('${p.id}')">
-        ${parseInt(p.stock, 10) <= 0 ? 'Agotado' : 'Agregar'}
-      </button>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end;">
+        <input type="number" min="1" max="${p.stock}" value="1" class="venta-cantidad-input" style="width:68px;padding:8px;border:1px solid #d1d5db;border-radius:8px;text-align:center;">
+        <button type="button" class="btn-secondary" ${parseInt(p.stock, 10) <= 0 ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''} onclick="agregarProductoAVenta('${p.id}', this.closest('.venta-producto-card').querySelector('.venta-cantidad-input').value)">
+          ${parseInt(p.stock, 10) <= 0 ? 'Agotado' : 'Agregar'}
+        </button>
+      </div>
     </div>`).join('');
 }
 
-function agregarProductoAVenta(productoId) {
+function agregarProductoAVenta(productoId, cantidad = 1) {
   const producto = _ventaProductosCatalogo.find(p => p.id === productoId);
   if (!producto) return;
+  const stock = parseInt(producto.stock, 10) || 0;
+  const cantidadSeleccionada = Math.max(1, Math.min(parseInt(cantidad, 10) || 1, stock));
   _ventaLineItems.push({
     id: producto.id,
     nombre: producto.nombre || '',
     precioUnitario: parseFloat(producto.precio) || 0,
-    stock: parseInt(producto.stock, 10) || 0,
-    cantidad: 1,
+    stock,
+    cantidad: cantidadSeleccionada,
   });
   renderProductosDisponiblesVenta();
   renderVentaProductosSeleccionados();
@@ -2489,15 +2714,33 @@ function actualizarInfoProductoVenta() {
   calcularTotalVenta();
 }
 
-async function guardarVenta() {
+function setVentaButtonsLoading(isLoading, activeButton = 'venta') {
+  const btnGuardar = document.getElementById('btnGuardarVenta');
+  const btnTicketCocina = document.getElementById('btnTicketCocinaVenta');
+
+  if (btnGuardar) {
+    btnGuardar.disabled = isLoading;
+    btnGuardar.innerHTML = isLoading
+      ? '<i class="fas fa-spinner fa-spin"></i> Guardando...'
+      : '<i class="fas fa-receipt"></i> Guardar y Generar Ticket';
+  }
+
+  if (btnTicketCocina) {
+    btnTicketCocina.disabled = isLoading;
+    btnTicketCocina.innerHTML = isLoading
+      ? (activeButton === 'cocina' ? '<i class="fas fa-spinner fa-spin"></i> Generando ticket...' : '<i class="fas fa-spinner fa-spin"></i> Procesando...')
+      : '<i class="fas fa-utensils"></i> Generar ticket para cocina';
+  }
+}
+
+async function guardarVenta({ tipoTicket = 'venta' } = {}) {
   const clienteNombre    = (document.getElementById('ventaClienteNombre')?.value || '').trim();
   const montoInput       = document.getElementById('ventaMontoRecibido');
   const totalEl          = document.getElementById('ventaTotal');
-  const btn              = document.getElementById('btnGuardarVenta');
+  const errorEl          = document.getElementById('ventaFormError');
 
   const mostrarError = (msg) => {
-    const el = document.getElementById('ventaFormError');
-    if (el) { el.textContent = msg; el.style.display = 'block'; }
+    if (errorEl) { errorEl.textContent = msg; errorEl.style.display = 'block'; }
   };
 
   if (!clienteNombre) { mostrarError('El nombre del cliente es obligatorio.'); return; }
@@ -2506,8 +2749,10 @@ async function guardarVenta() {
   const total         = _ventaLineItems.reduce((sum, item) => sum + item.precioUnitario * item.cantidad, 0);
   const montoRecibido = parseFloat(montoInput?.value) || 0;
 
-  if (montoRecibido <= 0)    { mostrarError('Ingresa el monto recibido.'); return; }
-  if (montoRecibido < total) { mostrarError(`El monto recibido ($${montoRecibido.toFixed(2)}) es menor al total ($${total.toFixed(2)}).`); return; }
+  if (montoInput?.value && montoRecibido < total) {
+    mostrarError(`El monto recibido ($${montoRecibido.toFixed(2)}) es menor al total ($${total.toFixed(2)}).`);
+    return;
+  }
 
   const productosConStockInsuficiente = _ventaLineItems.filter(item => item.cantidad > item.stock);
   if (productosConStockInsuficiente.length > 0) {
@@ -2515,10 +2760,8 @@ async function guardarVenta() {
     return;
   }
 
-  const cambio = montoRecibido - total;
-  btn.disabled = true;
-  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
-  document.getElementById('ventaFormError').style.display = 'none';
+  setVentaButtonsLoading(true, tipoTicket);
+  if (errorEl) errorEl.style.display = 'none';
 
   try {
     const now = new Date();
@@ -2533,7 +2776,7 @@ async function guardarVenta() {
       })),
       total,
       montoRecibido,
-      cambio,
+      cambio: montoRecibido - total,
       fecha: now.toISOString(),
       createdAt: now.toISOString(),
     };
@@ -2542,97 +2785,187 @@ async function guardarVenta() {
     await Promise.all(_ventaLineItems.map(item =>
       updateDoc(doc(db, 'productos', item.id), { stock: item.stock - item.cantidad })
     ));
-    await generarTicketVentaPDF(ventaRef.id, ventaData);
+    if (tipoTicket === 'cocina') {
+      await generarTicketCocinaPDF(ventaRef.id, ventaData);
+    } else {
+      await generarTicketVentaPDF(ventaRef.id, ventaData);
+    }
     cerrarModal();
     cargarVentas();
   } catch (e) {
     console.error('Error guardando venta', e);
-    const el = document.getElementById('ventaFormError');
-    if (el) { el.textContent = 'Error al guardar la venta. Intenta de nuevo.'; el.style.display = 'block'; }
-    btn.disabled = false;
-    btn.innerHTML = '<i class="fas fa-receipt"></i> Guardar y Generar Ticket';
+    if (errorEl) { errorEl.textContent = 'Error al guardar la venta. Intenta de nuevo.'; errorEl.style.display = 'block'; }
+    setVentaButtonsLoading(false, tipoTicket);
   }
 }
 
-async function generarTicketVentaPDF(ventaId, venta) {
+function getHotelTicketInfo() {
+  return {
+    nombre: 'Hotel Casa Usumacinta',
+    direccion: 'Calle Ámbar Mza 14 Lote 3, Colonia Pedregal de Montecristo, Emiliano Zapata, Tabasco C.P. 86992',
+    telefono: '934 111 8398',
+    facturaUrl: 'https://manuelasus.github.io/hotelusumacinta/web/facturacion/index.html',
+    leyendaFiscal: 'Ticket sin validez fiscal',
+    mensajeFactura: 'Obtenga su factura (CFDI) ingresando a',
+    mensajeMes: 'Recuerde facturar dentro del mes en curso utilizando el número de folio de este ticket.'
+  };
+}
+
+function dibujarEncabezadoTicket(doc, pageWidth, title, folio, fechaHora) {
+  const hotel = getHotelTicketInfo();
+  const headerHeight = 34;
+  doc.setFillColor(53, 70, 42);
+  doc.rect(0, 0, pageWidth, headerHeight, 'F');
+  doc.setTextColor(193, 164, 77);
+  doc.setFontSize(11);
+  doc.setFont(undefined, 'bold');
+  doc.text('Hotel Casa', pageWidth / 2, 7, { align: 'center' });
+  doc.text('Usumacinta', pageWidth / 2, 13, { align: 'center' });
+  doc.setFontSize(5.6);
+  doc.setTextColor(240, 232, 203);
+  const direccionLines = doc.splitTextToSize(hotel.direccion, pageWidth - 8);
+  doc.text(direccionLines, pageWidth / 2, 20, { align: 'center' });
+  doc.text(`Tel: ${hotel.telefono}`, pageWidth / 2, 24 + (direccionLines.length - 1) * 2.5, { align: 'center' });
+  doc.setTextColor(0, 0, 0);
+  doc.setFontSize(8);
+  doc.setFont(undefined, 'bold');
+  doc.text(title, pageWidth / 2, headerHeight + 6, { align: 'center' });
+  doc.setFontSize(6.6);
+  doc.setFont(undefined, 'normal');
+  doc.text(`Folio: ${folio}`, pageWidth / 2, headerHeight + 12, { align: 'center' });
+  if (fechaHora) {
+    doc.text(fechaHora, pageWidth / 2, headerHeight + 17, { align: 'center' });
+  }
+}
+
+function dibujarPieTicket(doc, pageWidth, pageHeight, folio) {
+  const hotel = getHotelTicketInfo();
+  const footerY = pageHeight - 40;
+  doc.setDrawColor(200, 200, 200);
+  doc.line(5, footerY, pageWidth - 5, footerY);
+  doc.setFontSize(5.4);
+  doc.setTextColor(70, 70, 70);
+  const leyendaLines = doc.splitTextToSize(hotel.leyendaFiscal, pageWidth - 10);
+  doc.text(leyendaLines, pageWidth / 2, footerY + 3, { align: 'center' });
+  const facturaLines = doc.splitTextToSize(`${hotel.mensajeFactura} ${hotel.facturaUrl}`, pageWidth - 10);
+  doc.text(facturaLines, pageWidth / 2, footerY + 7 + (leyendaLines.length - 1) * 1.8, { align: 'center' });
+  const avisoLines = doc.splitTextToSize(`${hotel.mensajeMes.replace('número de folio de este ticket', `número de folio ${folio}`)}`, pageWidth - 10);
+  doc.text(avisoLines, pageWidth / 2, footerY + 11 + (leyendaLines.length - 1) * 1.8 + (facturaLines.length - 1) * 1.8, { align: 'center' });
+}
+
+async function generarTicketCocinaPDF(ventaId, venta) {
   try {
     const { jsPDF } = window.jspdf;
-    const PW = 80;
+    const PW = 58;
     const items = Array.isArray(venta.lineItems) && venta.lineItems.length > 0
       ? venta.lineItems
       : [{ nombre: venta.productoNombre || 'Producto', cantidad: venta.cantidad || 1, precioUnitario: venta.precioUnitario || 0 }];
-    const ticketHeight = Math.max(160, 160 + items.length * 7);
-    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [PW, ticketHeight] });
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [PW, 210] });
 
     const fechaObj = new Date(venta.fecha);
     const fechaStr = fechaObj.toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' });
     const horaStr  = fechaObj.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
 
-    // Header block
-    doc.setFillColor(53, 70, 42);
-    doc.rect(0, 0, PW, 23, 'F');
-    doc.setTextColor(193, 164, 77);
-    doc.setFontSize(13); doc.setFont(undefined, 'bold');
-    doc.text('Hotel Casa', PW / 2, 8,  { align: 'center' });
-    doc.text('Usumacinta', PW / 2, 14, { align: 'center' });
-    doc.setFontSize(7); doc.setTextColor(190, 220, 190);
-    doc.text('Emiliano Zapata Centro, Tabasco — Tel: 934 111 8398', PW / 2, 20, { align: 'center' });
+    const folio = `#${ventaId.substring(0, 10).toUpperCase()}`;
+    const fechaHora = `${fechaStr}   ${horaStr}`;
+    dibujarEncabezadoTicket(doc, PW, 'TICKET DE COCINA', folio, fechaHora);
 
-    let y = 28;
+    let y = 54;
     doc.setTextColor(0, 0, 0);
-
-    // Ticket title & ID
-    doc.setFontSize(10); doc.setFont(undefined, 'bold');
-    doc.text('TICKET DE VENTA', PW / 2, y, { align: 'center' }); y += 4;
-    doc.setFontSize(7); doc.setFont(undefined, 'normal'); doc.setTextColor(100, 100, 100);
-    doc.text(`Folio: #${ventaId.substring(0, 10).toUpperCase()}`, PW / 2, y, { align: 'center' }); y += 3;
-    doc.text(`${fechaStr}   ${horaStr}`, PW / 2, y, { align: 'center' }); y += 5;
 
     doc.setDrawColor(200, 200, 200);
     doc.line(5, y, PW - 5, y); y += 5;
 
-    // Customer
     doc.setTextColor(0, 0, 0);
-    doc.setFontSize(8); doc.setFont(undefined, 'bold');
+    doc.setFontSize(7.5); doc.setFont(undefined, 'bold');
     doc.text('CLIENTE:', 5, y); y += 4;
     doc.setFont(undefined, 'normal');
-    doc.text(venta.clienteNombre.substring(0, 38), 5, y); y += 6;
+    const clienteLine = doc.splitTextToSize(venta.clienteNombre ? venta.clienteNombre.substring(0, 38) : 'Cliente', PW - 10);
+    doc.text(clienteLine, 5, y); y += clienteLine.length * 3.5;
 
-    doc.line(5, y, PW - 5, y); y += 5;
+    doc.line(5, y, PW - 5, y); y += 4;
 
-    // Productos
     doc.setFont(undefined, 'bold');
     doc.text('PRODUCTOS:', 5, y); y += 4;
     doc.setFont(undefined, 'normal');
     items.forEach(item => {
       const itemNameLines = doc.splitTextToSize(item.nombre, PW - 10);
       doc.text(itemNameLines, 5, y);
-      y += itemNameLines.length * 4;
+      y += itemNameLines.length * 3.5;
       doc.text(`${item.cantidad} x $${item.precioUnitario.toFixed(2)}`, 5, y);
-      doc.text(`$${(item.cantidad * item.precioUnitario).toFixed(2)}`, PW - 5, y, { align: 'right' });
-      y += 5;
+      y += 4.5;
     });
 
     doc.line(5, y, PW - 5, y); y += 5;
 
-    // Totals table
-    doc.setFontSize(9); doc.setFont(undefined, 'bold');
+    doc.setFont(undefined, 'normal'); doc.setFontSize(7); doc.setTextColor(120, 120, 120);
+    doc.text('Preparar según la orden', PW / 2, y, { align: 'center' });
+    dibujarPieTicket(doc, PW, 210, folio);
+
+    doc.save(`ticket-cocina-${ventaId.substring(0, 8)}.pdf`);
+  } catch (e) {
+    console.error('Error generando PDF de cocina', e);
+    alert('Venta guardada correctamente. No se pudo generar el PDF de cocina.');
+  }
+}
+
+async function generarTicketVentaPDF(ventaId, venta) {
+  try {
+    const { jsPDF } = window.jspdf;
+    const PW = 58;
+    const items = Array.isArray(venta.lineItems) && venta.lineItems.length > 0
+      ? venta.lineItems
+      : [{ nombre: venta.productoNombre || 'Producto', cantidad: venta.cantidad || 1, precioUnitario: venta.precioUnitario || 0 }];
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [PW, 210] });
+
+    const fechaObj = new Date(venta.fecha);
+    const fechaStr = fechaObj.toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' });
+    const horaStr  = fechaObj.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+
+    const folio = `#${ventaId.substring(0, 10).toUpperCase()}`;
+    const fechaHora = `${fechaStr}   ${horaStr}`;
+    dibujarEncabezadoTicket(doc, PW, 'TICKET DE VENTA', folio, fechaHora);
+
+    let y = 54;
+    doc.setTextColor(0, 0, 0);
+
+    doc.setDrawColor(200, 200, 200);
+    doc.line(5, y, PW - 5, y); y += 5;
+
+    doc.setTextColor(0, 0, 0);
+    doc.setFontSize(7.5); doc.setFont(undefined, 'bold');
+    doc.text('CLIENTE:', 5, y); y += 4;
+    doc.setFont(undefined, 'normal');
+    const clienteLine = doc.splitTextToSize(venta.clienteNombre ? venta.clienteNombre.substring(0, 38) : 'Cliente', PW - 10);
+    doc.text(clienteLine, 5, y); y += clienteLine.length * 3.5;
+
+    doc.line(5, y, PW - 5, y); y += 4;
+
+    doc.setFont(undefined, 'bold');
+    doc.text('PRODUCTOS:', 5, y); y += 4;
+    doc.setFont(undefined, 'normal');
+    items.forEach(item => {
+      const itemNameLines = doc.splitTextToSize(item.nombre, PW - 10);
+      doc.text(itemNameLines, 5, y);
+      y += itemNameLines.length * 3.5;
+      doc.text(`${item.cantidad} x $${item.precioUnitario.toFixed(2)}`, 5, y);
+      doc.text(`$${(item.cantidad * item.precioUnitario).toFixed(2)}`, PW - 5, y, { align: 'right' });
+      y += 4.5;
+    });
+
+    doc.line(5, y, PW - 5, y); y += 5;
+
+    doc.setFontSize(8); doc.setFont(undefined, 'bold');
     doc.text('TOTAL:', 5, y);
     doc.text(`$${venta.total.toFixed(2)}`, PW - 5, y, { align: 'right' }); y += 5;
-    doc.setFont(undefined, 'normal'); doc.setFontSize(8);
+    doc.setFont(undefined, 'normal'); doc.setFontSize(7);
     doc.text('Recibido:', 5, y);
     doc.text(`$${venta.montoRecibido.toFixed(2)}`, PW - 5, y, { align: 'right' }); y += 4;
     doc.setFont(undefined, 'bold');
     doc.text('Cambio:', 5, y);
-    doc.text(`$${venta.cambio.toFixed(2)}`, PW - 5, y, { align: 'right' }); y += 8;
+    doc.text(`$${venta.cambio.toFixed(2)}`, PW - 5, y, { align: 'right' }); y += 6;
 
-    doc.line(5, y, PW - 5, y); y += 6;
-
-    // Footer
-    doc.setFont(undefined, 'normal'); doc.setFontSize(8); doc.setTextColor(120, 120, 120);
-    doc.text('¡Gracias por su compra!', PW / 2, y, { align: 'center' }); y += 4;
-    doc.setFontSize(7);
-    doc.text('www.casausumacinta.com', PW / 2, y, { align: 'center' });
+    dibujarPieTicket(doc, PW, 210, folio);
 
     doc.save(`ticket-venta-${ventaId.substring(0, 8)}.pdf`);
   } catch (e) {
@@ -2675,12 +3008,18 @@ async function mostrarHistorialVentas() {
       const fechaObj = new Date(v.fecha || v.createdAt);
       const fechaStr = fechaObj.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' });
       const horaStr  = fechaObj.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+      const lineItems = Array.isArray(v.lineItems) && v.lineItems.length > 0
+        ? v.lineItems
+        : [{ nombre: v.productoNombre || 'Producto', cantidad: Number(v.cantidad) || 1 }];
+      const productosResumen = lineItems.map(item => `${item.nombre || 'Producto'}${Number(item.cantidad) > 1 ? ` x${item.cantidad}` : ''}`).join('<br>');
+      const cantidadTotal = lineItems.reduce((sum, item) => sum + (Number(item.cantidad) || 0), 0);
+
       rowsHtml += `
         <tr>
           <td style="font-size:12px;color:#6b7280;white-space:nowrap;">${fechaStr}<br><span style="color:#9ca3af;">${horaStr}</span></td>
           <td style="font-weight:600;">${v.clienteNombre}</td>
-          <td style="font-size:13px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${v.productoNombre}</td>
-          <td style="text-align:center;font-weight:600;">${v.cantidad}</td>
+          <td style="font-size:13px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:normal;">${productosResumen}</td>
+          <td style="text-align:center;font-weight:600;">${cantidadTotal}</td>
           <td style="font-weight:700;color:#C1A44D;white-space:nowrap;">$${Number(v.total).toFixed(2)}</td>
           <td>
             <button class="btn-action btn-view" onclick="verTicketHistorial(${idx})" title="Descargar ticket PDF">
@@ -3484,9 +3823,9 @@ async function generarTicketPDF(reservaId, reservaData, roomData, huespedesIds, 
   try {
     const { jsPDF } = window.jspdf;
     
-    // Formato ticket (ancho: 80mm, alto: 150mm)
-    const pageWidth = 80;
-    const pageHeight = 150;
+    // Formato ticket (ancho: 58mm, alto: 210mm)
+    const pageWidth = 58;
+    const pageHeight = 210;
     
     const doc = new jsPDF({
       orientation: 'portrait',
@@ -3497,65 +3836,48 @@ async function generarTicketPDF(reservaId, reservaData, roomData, huespedesIds, 
     const checkInDate = fmtFecha(reservaData.checkIn);
     const checkOutDate = fmtFecha(reservaData.checkOut);
     
-    // Encabezado hotel
-    doc.setFillColor(47, 139, 58);
-    doc.rect(0, 0, pageWidth, 20, 'F');
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(16);
-    doc.setFont(undefined, 'bold');
-    doc.text('Hotel Casa', pageWidth / 2, 7, { align: 'center' });
-    doc.text('Usumacinta', pageWidth / 2, 13, { align: 'center' });
-    
-    // Contenido
+    const folio = reservaId.substring(0, 8).toUpperCase();
+    const ahora = new Date();
+    const fechaHora = `${ahora.toLocaleDateString('es-MX')} ${ahora.toLocaleTimeString('es-MX')}`;
+    dibujarEncabezadoTicket(doc, pageWidth, 'TICKET DE RESERVA', `#${folio}`, `${checkInDate} / ${checkOutDate}`);
+
     doc.setTextColor(0, 0, 0);
-    doc.setFontSize(8);
-    let yPos = 25;
-    
-    // Número de ticket
-    doc.setFont(undefined, 'bold');
-    doc.text(`TICKET #${reservaId.substring(0, 8).toUpperCase()}`, pageWidth / 2, yPos, { align: 'center' });
-    yPos += 6;
-    
-    // Línea divisora
-    doc.setDrawColor(200, 200, 200);
-    doc.line(5, yPos, pageWidth - 5, yPos);
-    yPos += 4;
-    
-    // Información del huésped
+    doc.setFontSize(7);
+    let yPos = 54;
+
     doc.setFont(undefined, 'bold');
     doc.text('HUÉSPED:', 5, yPos);
     doc.setFont(undefined, 'normal');
     yPos += 4;
-    doc.text(nombrePrincipal.substring(0, 30), 5, yPos);
-    yPos += 3;
+    const nombreLines = doc.splitTextToSize(nombrePrincipal.substring(0, 36), pageWidth - 10);
+    doc.text(nombreLines, 5, yPos);
+    yPos += nombreLines.length * 3.5;
     doc.text(`Telf: ${telefonoPrincipal}`, 5, yPos);
     yPos += 5;
-    
-    // Información de la habitación
+
     doc.setFont(undefined, 'bold');
     doc.text('HABITACIÓN:', 5, yPos);
     doc.setFont(undefined, 'normal');
     yPos += 4;
     doc.text(`No. ${roomData.numero}`, 5, yPos);
-    yPos += 3;
+    yPos += 3.2;
     doc.text(`Tipo: ${roomData.tipo}`, 5, yPos);
-    yPos += 3;
+    yPos += 3.2;
     doc.text(`Capacidad: ${roomData.capacidad} persona(s)`, 5, yPos);
     yPos += 5;
-    
-    // Información de la reserva
+
     doc.setFont(undefined, 'bold');
     doc.text('RESERVA:', 5, yPos);
     doc.setFont(undefined, 'normal');
     yPos += 4;
     doc.text(`Check-in: ${checkInDate}`, 5, yPos);
-    yPos += 3;
+    yPos += 3.2;
     doc.text(`Check-out: ${checkOutDate}`, 5, yPos);
-    yPos += 3;
+    yPos += 3.2;
     doc.text(`Noches: ${reservaData.noches}`, 5, yPos);
-    yPos += 3;
+    yPos += 3.2;
     doc.text(`Precio/Noche: $${parseFloat(reservaData.precioNoche).toFixed(2)}`, 5, yPos);
-    yPos += 3;
+    yPos += 3.2;
     const totalOriginal = parseFloat(reservaData.totalOriginal || reservaData.total || 0);
     const anticipo = parseFloat(reservaData.total || 0);
     const porcentajePago = parseInt(reservaData.porcentajePago || 100, 10);
@@ -3566,35 +3888,30 @@ async function generarTicketPDF(reservaId, reservaData, roomData, huespedesIds, 
     yPos += 4;
     doc.text(`Pendiente: $${pendiente.toFixed(2)}`, 5, yPos);
     yPos += 5;
-    
+
     if (pendiente > 0) {
       doc.setFont(undefined, 'bold');
       doc.text(`SALDO PENDIENTE: $${pendiente.toFixed(2)}`, 5, yPos);
       yPos += 5;
       doc.setFont(undefined, 'normal');
     }
-    
-    // Total pagado
+
     doc.setFillColor(230, 245, 230);
     doc.rect(5, yPos - 2, pageWidth - 10, 8, 'F');
     doc.setFont(undefined, 'bold');
-    doc.setFontSize(9);
+    doc.setFontSize(8);
     doc.text(`PAGADO: $${anticipo.toFixed(2)}`, pageWidth / 2, yPos + 2, { align: 'center' });
     yPos += 10;
-    
-    // Tipo de pago
-    doc.setFontSize(8);
+
+    doc.setFontSize(7);
     doc.setFont(undefined, 'normal');
     doc.text(`Tipo reserva: ${reservaData.tipoReserva || '—'}`, pageWidth / 2, yPos, { align: 'center' });
     yPos += 4;
     doc.text(`Medio: ${reservaData.paymentMethod}`, pageWidth / 2, yPos, { align: 'center' });
     yPos += 4;
-    
-    // Fecha de generación
-    doc.setFontSize(7);
     doc.setTextColor(150, 150, 150);
-    const ahora = new Date();
-    doc.text(`Generado: ${ahora.toLocaleDateString('es-MX')} ${ahora.toLocaleTimeString('es-MX')}`, pageWidth / 2, yPos, { align: 'center' });
+    doc.text(`Generado: ${fechaHora}`, pageWidth / 2, yPos, { align: 'center' });
+    dibujarPieTicket(doc, pageWidth, pageHeight, `#${folio}`);
     
     // Guardar en Firestore
     const ticketData = {
@@ -3758,9 +4075,9 @@ async function descargarTicket(ticketId, nombreHuesped, fechaCreado) {
 
     const { jsPDF } = window.jspdf;
     
-    // Formato ticket (ancho: 80mm, alto: 150mm)
-    const pageWidth = 80;
-    const pageHeight = 150;
+    // Formato ticket (ancho: 58mm, alto: 210mm)
+    const pageWidth = 58;
+    const pageHeight = 210;
     
     const docPDF = new jsPDF({
       orientation: 'portrait',
@@ -3771,84 +4088,61 @@ async function descargarTicket(ticketId, nombreHuesped, fechaCreado) {
     const checkInDate = fmtFecha(t.checkIn);
     const checkOutDate = fmtFecha(t.checkOut);
     
-    // Encabezado hotel
-    docPDF.setFillColor(47, 139, 58);
-    docPDF.rect(0, 0, pageWidth, 20, 'F');
-    docPDF.setTextColor(255, 255, 255);
-    docPDF.setFontSize(16);
-    docPDF.setFont(undefined, 'bold');
-    docPDF.text('Hotel Casa', pageWidth / 2, 7, { align: 'center' });
-    docPDF.text('Usumacinta', pageWidth / 2, 13, { align: 'center' });
-    
-    // Contenido
+    const folio = (t.reservaId || '').substring(0, 8).toUpperCase();
+    dibujarEncabezadoTicket(docPDF, pageWidth, 'TICKET DE RESERVA', `#${folio}`, `${checkInDate} / ${checkOutDate}`);
+
     docPDF.setTextColor(0, 0, 0);
-    docPDF.setFontSize(8);
-    let yPos = 25;
-    
-    // Número de ticket
-    docPDF.setFont(undefined, 'bold');
-    docPDF.text(`TICKET #${t.reservaId.substring(0, 8).toUpperCase()}`, pageWidth / 2, yPos, { align: 'center' });
-    yPos += 6;
-    
-    // Línea divisora
-    docPDF.setDrawColor(200, 200, 200);
-    docPDF.line(5, yPos, pageWidth - 5, yPos);
-    yPos += 4;
-    
-    // Información del huésped
+    docPDF.setFontSize(7);
+    let yPos = 54;
+
     docPDF.setFont(undefined, 'bold');
     docPDF.text('HUÉSPED:', 5, yPos);
     docPDF.setFont(undefined, 'normal');
     yPos += 4;
-    docPDF.text(t.nombreHuesped.substring(0, 30), 5, yPos);
-    yPos += 3;
-    docPDF.text(`Telf: ${t.telefonoHuesped}`, 5, yPos);
+    const nombreLines = docPDF.splitTextToSize((t.nombreHuesped || 'Sin nombre').substring(0, 36), pageWidth - 10);
+    docPDF.text(nombreLines, 5, yPos);
+    yPos += nombreLines.length * 3.5;
+    docPDF.text(`Telf: ${t.telefonoHuesped || '—'}`, 5, yPos);
     yPos += 5;
-    
-    // Información de la habitación
+
     docPDF.setFont(undefined, 'bold');
     docPDF.text('HABITACIÓN:', 5, yPos);
     docPDF.setFont(undefined, 'normal');
     yPos += 4;
-    docPDF.text(`No. ${t.numeroHabitacion}`, 5, yPos);
-    yPos += 3;
-    docPDF.text(`Tipo: ${t.tipoHabitacion}`, 5, yPos);
-    yPos += 3;
-    docPDF.text(`Capacidad: ${t.capacidadHabitacion} persona(s)`, 5, yPos);
+    docPDF.text(`No. ${t.numeroHabitacion || '—'}`, 5, yPos);
+    yPos += 3.2;
+    docPDF.text(`Tipo: ${t.tipoHabitacion || '—'}`, 5, yPos);
+    yPos += 3.2;
+    docPDF.text(`Capacidad: ${t.capacidadHabitacion || '—'} persona(s)`, 5, yPos);
     yPos += 5;
-    
-    // Información de la reserva
+
     docPDF.setFont(undefined, 'bold');
     docPDF.text('RESERVA:', 5, yPos);
     docPDF.setFont(undefined, 'normal');
     yPos += 4;
     docPDF.text(`Check-in: ${checkInDate}`, 5, yPos);
-    yPos += 3;
+    yPos += 3.2;
     docPDF.text(`Check-out: ${checkOutDate}`, 5, yPos);
-    yPos += 3;
-    docPDF.text(`Noches: ${t.noches}`, 5, yPos);
-    yPos += 3;
-    docPDF.text(`Precio/Noche: $${parseFloat(t.precioNoche).toFixed(2)}`, 5, yPos);
+    yPos += 3.2;
+    docPDF.text(`Noches: ${t.noches || 0}`, 5, yPos);
+    yPos += 3.2;
+    docPDF.text(`Precio/Noche: $${parseFloat(t.precioNoche || 0).toFixed(2)}`, 5, yPos);
     yPos += 5;
-    
-    // Total
+
     docPDF.setFillColor(230, 245, 230);
     docPDF.rect(5, yPos - 2, pageWidth - 10, 8, 'F');
     docPDF.setFont(undefined, 'bold');
-    docPDF.setFontSize(9);
-    docPDF.text(`TOTAL: $${parseFloat(t.total).toFixed(2)}`, pageWidth / 2, yPos + 2, { align: 'center' });
-    yPos += 10;
-    
-    // Tipo de pago
     docPDF.setFontSize(8);
-    docPDF.setFont(undefined, 'normal');
-    docPDF.text(`Pago: ${t.tipoPago}`, pageWidth / 2, yPos, { align: 'center' });
-    yPos += 4;
-    
-    // Fecha de generación
+    docPDF.text(`TOTAL: $${parseFloat(t.total || 0).toFixed(2)}`, pageWidth / 2, yPos + 2, { align: 'center' });
+    yPos += 10;
+
     docPDF.setFontSize(7);
+    docPDF.setFont(undefined, 'normal');
+    docPDF.text(`Pago: ${t.tipoPago || '—'}`, pageWidth / 2, yPos, { align: 'center' });
+    yPos += 4;
     docPDF.setTextColor(150, 150, 150);
     docPDF.text(`Generado: ${fechaCreado}`, pageWidth / 2, yPos, { align: 'center' });
+    dibujarPieTicket(docPDF, pageWidth, pageHeight, `#${folio}`);
     
     // Descargar
     docPDF.save(`Ticket_${nombreHuesped.replace(/\s+/g, '_')}_${fechaCreado}.pdf`);
@@ -3883,6 +4177,8 @@ window.cerrarSesion = cerrarSesion;
 window.cargarHabitaciones = cargarHabitaciones;
 window.cargarHuespedes = cargarHuespedes;
 window.cargarReservas = cargarReservas;
+window.cargarCalendario = cargarCalendario;
+window.moverCalendario = moverCalendario;
 window.mostrarFormularioHabitacion = mostrarFormularioHabitacion;
 window.guardarHabitacion = guardarHabitacion;
 window.editarHabitacion = editarHabitacion;

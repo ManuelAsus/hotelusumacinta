@@ -288,7 +288,7 @@ console.log('Página web del Hotel Casa Usumacinta cargada correctamente ✓');
         if (body) body.innerHTML = '';
     }
 
-    function abrirModalReserva(capacidad) {
+    function abrirModalReserva(capacidad, roomLabel = '') {
         const modal = document.getElementById('reservaModal');
         const body = document.getElementById('reservaModalBody');
         if (!modal || !body) return;
@@ -390,7 +390,7 @@ console.log('Página web del Hotel Casa Usumacinta cargada correctamente ✓');
         actualizarPorcentajePago();
         actualizarDatosBancarios();
         attachFacturarListeners();
-        if (capacidad) actualizarHabitacionesPorCapacidad(capacidad);
+        if (capacidad) actualizarHabitacionesPorCapacidad(capacidad, roomLabel);
     }
 
     function attachFacturarListeners() {
@@ -401,6 +401,104 @@ console.log('Página web del Hotel Casa Usumacinta cargada correctamente ✓');
         });
     }
 
+    function formatearFechaInput(fecha) {
+        const año = fecha.getFullYear();
+        const mes = String(fecha.getMonth() + 1).padStart(2, '0');
+        const dia = String(fecha.getDate()).padStart(2, '0');
+        return `${año}-${mes}-${dia}`;
+    }
+
+    function parsearFechaInput(valor) {
+        if (!valor) return null;
+        const [año, mes, dia] = valor.split('-').map(Number);
+        return new Date(año, mes - 1, dia);
+    }
+
+    function encontrarSiguienteFechaDisponible(fechaInicial, fechasBloqueadas) {
+        const candidata = new Date(fechaInicial);
+        candidata.setHours(12, 0, 0, 0);
+        while (fechasBloqueadas.has(formatearFechaInput(candidata))) {
+            candidata.setDate(candidata.getDate() + 1);
+        }
+        return candidata;
+    }
+
+    async function actualizarFechasDisponibles() {
+        const helpers = await getFirestoreHelpers();
+        if (!helpers) return;
+        const { db, collection, getDocs } = helpers;
+        const roomSelect = document.getElementById('huespedHabitacion');
+        const checkInInput = document.getElementById('checkInDate');
+        const checkOutInput = document.getElementById('checkOutDate');
+        if (!roomSelect || !checkInInput || !checkOutInput) return;
+
+        const roomId = roomSelect.value;
+        const hoy = new Date();
+        hoy.setHours(12, 0, 0, 0);
+        const hoyInput = formatearFechaInput(hoy);
+        checkInInput.min = hoyInput;
+
+        if (!roomId) {
+            checkInInput.value = '';
+            checkOutInput.value = '';
+            checkOutInput.min = hoyInput;
+            return;
+        }
+
+        try {
+            const reservasSnap = await getDocs(collection(db, 'reservas'));
+            const fechasBloqueadas = new Set();
+            reservasSnap.forEach(docReserva => {
+                const reserva = { id: docReserva.id, ...docReserva.data() };
+                if (!reserva.roomId || reserva.roomId !== roomId) return;
+                if ((reserva.status || 'Confirmada') === 'Cancelada') return;
+                const checkIn = reserva.checkIn && reserva.checkIn.toDate ? reserva.checkIn.toDate() : new Date(reserva.checkIn);
+                const checkOut = reserva.checkOut && reserva.checkOut.toDate ? reserva.checkOut.toDate() : new Date(reserva.checkOut);
+                const fechaActual = new Date(checkIn);
+                fechaActual.setHours(12, 0, 0, 0);
+                const fechaFin = new Date(checkOut);
+                fechaFin.setHours(12, 0, 0, 0);
+                while (fechaActual < fechaFin) {
+                    fechasBloqueadas.add(formatearFechaInput(fechaActual));
+                    fechaActual.setDate(fechaActual.getDate() + 1);
+                }
+            });
+
+            const checkInActual = checkInInput.value;
+            const checkInParsed = checkInActual ? parsearFechaInput(checkInActual) : null;
+            const checkInValido = !!checkInParsed && checkInParsed >= hoy && !fechasBloqueadas.has(checkInActual);
+            let nuevoCheckIn = checkInActual;
+            if (!checkInValido) {
+                const fechaDisponible = encontrarSiguienteFechaDisponible(hoy, fechasBloqueadas);
+                nuevoCheckIn = formatearFechaInput(fechaDisponible);
+            }
+            if (nuevoCheckIn !== checkInActual) {
+                checkInInput.value = nuevoCheckIn;
+            }
+
+            const checkInDate = parsearFechaInput(checkInInput.value);
+            const checkoutMin = new Date(checkInDate);
+            checkoutMin.setDate(checkoutMin.getDate() + 1);
+            checkOutInput.min = formatearFechaInput(checkoutMin);
+
+            const checkOutActual = checkOutInput.value;
+            const checkOutParsed = checkOutActual ? parsearFechaInput(checkOutActual) : null;
+            const checkOutValido = !!checkOutParsed && checkOutParsed > checkInDate && !fechasBloqueadas.has(checkOutActual);
+            let nuevoCheckOut = checkOutActual;
+            if (!checkOutValido) {
+                const checkoutDisponible = encontrarSiguienteFechaDisponible(checkoutMin, fechasBloqueadas);
+                nuevoCheckOut = formatearFechaInput(checkoutDisponible);
+            }
+            if (nuevoCheckOut !== checkOutActual) {
+                checkOutInput.value = nuevoCheckOut;
+            }
+
+            calcularTotal();
+        } catch (error) {
+            console.error('Error cargando fechas disponibles:', error);
+        }
+    }
+
     function actualizarDatosBancarios() {
         const facturar = document.querySelector('input[name="facturar"]:checked')?.value || 'no';
         const datosContainer = document.getElementById('datosBancariosContainer');
@@ -408,7 +506,7 @@ console.log('Página web del Hotel Casa Usumacinta cargada correctamente ✓');
         if (!datosContainer || !datosTexto) return;
         datosContainer.style.display = 'block';
         if (facturar === 'si') {
-            datosTexto.textContent = 'CLABE interbancaria XXXXXXXX banco XXXXXX';
+            datosTexto.textContent = 'CLABE interbancaria 012796004921167074 banco BBVA';
         } else {
             datosTexto.textContent = 'CLABE interbancaria 012796015605553236 banco BBVA';
         }
@@ -425,30 +523,64 @@ console.log('Página web del Hotel Casa Usumacinta cargada correctamente ✓');
             const checkInInput = document.getElementById('checkInDate');
             const checkOutInput = document.getElementById('checkOutDate');
             const habitacionSelect = document.getElementById('huespedHabitacion');
-            if (checkInInput) checkInInput.addEventListener('change', calcularTotal);
-            if (checkOutInput) checkOutInput.addEventListener('change', calcularTotal);
-            if (habitacionSelect) habitacionSelect.addEventListener('change', calcularTotal);
+            if (checkInInput && !checkInInput.dataset.listenersAttached) {
+                checkInInput.addEventListener('change', () => {
+                    actualizarFechasDisponibles();
+                    calcularTotal();
+                });
+                checkInInput.dataset.listenersAttached = 'true';
+            }
+            if (checkOutInput && !checkOutInput.dataset.listenersAttached) {
+                checkOutInput.addEventListener('change', () => {
+                    actualizarFechasDisponibles();
+                    calcularTotal();
+                });
+                checkOutInput.dataset.listenersAttached = 'true';
+            }
+            if (habitacionSelect && !habitacionSelect.dataset.listenersAttached) {
+                habitacionSelect.addEventListener('change', () => {
+                    actualizarFechasDisponibles();
+                    calcularTotal();
+                });
+                habitacionSelect.dataset.listenersAttached = 'true';
+            }
+            actualizarFechasDisponibles();
         }, 50);
     }
 
-    async function actualizarHabitacionesPorCapacidad(cantidad) {
+    async function actualizarHabitacionesPorCapacidad(cantidad, roomLabel = '') {
         const helpers = await getFirestoreHelpers();
         if (!helpers) return;
-        const { db, collection, getDocs, query, where } = helpers;
+        const { db, collection, getDocs } = helpers;
         const selectHabitacion = document.getElementById('huespedHabitacion');
         if (!selectHabitacion) return;
 
         try {
             const roomsSnap = await getDocs(collection(db, 'habitaciones'));
             let roomsOptions = '<option value="">Selecciona habitación</option>';
+            let primeraHabitacionId = '';
+            const normalizedLabel = (roomLabel || '').toLowerCase().trim();
+
             roomsSnap.forEach(r => {
                 const data = r.data();
                 const capacity = parseInt(data.capacidad, 10);
                 if (data.estado === 'Disponible' && capacity === cantidad) {
+                    if (!primeraHabitacionId) primeraHabitacionId = r.id;
+                    const tipoTexto = (data.tipo || '').toString().toLowerCase();
+                    const coincideConLabel = normalizedLabel && (tipoTexto.includes(normalizedLabel.replace(/^habitación\s+/, '')) || normalizedLabel.includes(tipoTexto));
+                    if (!normalizedLabel || coincideConLabel) {
+                        primeraHabitacionId = r.id;
+                    }
                     roomsOptions += `<option value="${r.id}">${data.numero} - ${data.tipo} (Capacidad: ${data.capacidad})</option>`;
                 }
             });
+
             selectHabitacion.innerHTML = roomsOptions;
+            if (primeraHabitacionId) {
+                selectHabitacion.value = primeraHabitacionId;
+                calcularTotal();
+                setTimeout(() => actualizarFechasDisponibles(), 80);
+            }
         } catch (error) {
             console.error('Error actualizando habitaciones por capacidad:', error);
             selectHabitacion.innerHTML = '<option value="">Error cargando habitaciones</option>';
@@ -778,7 +910,8 @@ console.log('Página web del Hotel Casa Usumacinta cargada correctamente ✓');
     function handleReservarBtnClick(event) {
         const button = event.currentTarget;
         const capacidad = parseInt(button.dataset.roomCapacity || '1', 10);
-        abrirModalReserva(capacidad);
+        const roomLabel = button.dataset.roomLabel || '';
+        abrirModalReserva(capacidad, roomLabel);
     }
 
     function initializeReservaFeature() {
