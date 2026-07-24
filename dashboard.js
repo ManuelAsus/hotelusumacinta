@@ -154,19 +154,44 @@ let calendarioMesActual = new Date();
 
 function obtenerFechaNormalizada(value) {
   if (!value) return null;
-  if (value.toDate) return new Date(value.toDate());
-  if (value instanceof Date) return new Date(value.getFullYear(), value.getMonth(), value.getDate());
+
+  if (typeof value === 'object' && value !== null) {
+    if (typeof value.toDate === 'function') {
+      const d = value.toDate();
+      return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    }
+    if (typeof value.seconds === 'number' && typeof value.nanoseconds === 'number') {
+      const d = new Date(value.seconds * 1000 + Math.floor(value.nanoseconds / 1e6));
+      return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    }
+  }
+
+  if (value instanceof Date) {
+    return new Date(value.getFullYear(), value.getMonth(), value.getDate());
+  }
+
+  if (typeof value === 'string') {
+    const isoDateOnly = /^\d{4}-\d{2}-\d{2}$/.test(value.trim());
+    if (isoDateOnly) {
+      const [year, month, day] = value.split('-').map(Number);
+      return new Date(year, month - 1, day);
+    }
+  }
+
   const parsed = new Date(value);
   if (!Number.isNaN(parsed.getTime())) {
     return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
   }
+
   return null;
 }
 
 function formatearFechaCorta(value) {
   if (!value) return '—';
   try {
-    return new Date(value).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' });
+    const fecha = obtenerFechaNormalizada(value);
+    if (!fecha) return '—';
+    return fecha.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' });
   } catch (e) {
     return '—';
   }
@@ -195,7 +220,7 @@ async function cargarCalendario() {
         ...data,
         start,
         end,
-        esActual: start && end && start <= hoy && hoy < end && (data.status || 'Confirmada') !== 'Cancelada'
+        esActual: start && end && start <= hoy && hoy <= end && (data.status || 'Confirmada') !== 'Cancelada'
       };
     }).filter(item => item.start && item.end);
 
@@ -243,8 +268,10 @@ function renderCalendario(reservas = []) {
 
     const fechaDia = new Date(dia.getFullYear(), dia.getMonth(), dia.getDate());
     const eventos = reservas.filter(item => {
-      if (!item.start || !item.end) return false;
-      return fechaDia >= item.start && fechaDia < item.end;
+      const start = obtenerFechaNormalizada(item.start);
+      const end = obtenerFechaNormalizada(item.end);
+      if (!start || !end) return false;
+      return fechaDia >= start && fechaDia <= end;
     });
 
     const esHoy = fechaDia.toDateString() === hoy.toDateString();
@@ -2482,6 +2509,7 @@ async function eliminarProducto(productoId, esChunked) {
 // ---- Registrar Venta ----
 let _ventaProductosCatalogo = [];
 let _ventaLineItems = [];
+let _ventaUltimoTotal = 0;
 
 async function mostrarFormularioVenta() {
   const modal = document.getElementById('modal');
@@ -2554,7 +2582,7 @@ async function mostrarFormularioVenta() {
     <div class="modal-actions" style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;">
       <button class="btn-secondary" id="btnCancelarVenta">Cancelar</button>
       <button class="btn-primary" id="btnTicketCocinaVenta" ${!hayProductos ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''}>
-        <i class="fas fa-utensils"></i> Generar ticket para cocina
+        <i class="fas fa-utensils"></i> Generar ticket cocina + venta
       </button>
       <button class="btn-primary" id="btnGuardarVenta" ${!hayProductos ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''}>
         <i class="fas fa-receipt"></i> Guardar y Generar Ticket
@@ -2680,9 +2708,19 @@ function eliminarProductoVenta(productoId) {
 
 function calcularTotalVenta() {
   const totalEl = document.getElementById('ventaTotal');
+  const montoInput = document.getElementById('ventaMontoRecibido');
   if (!totalEl) return;
   const total = _ventaLineItems.reduce((sum, item) => sum + item.precioUnitario * item.cantidad, 0);
   totalEl.textContent = `$${total.toFixed(2)}`;
+
+  if (montoInput) {
+    const montoActual = parseFloat(montoInput.value);
+    if (!montoInput.value || montoActual === _ventaUltimoTotal || Number.isNaN(montoActual)) {
+      montoInput.value = total.toFixed(2);
+    }
+  }
+
+  _ventaUltimoTotal = total;
   calcularCambioVenta();
 }
 
@@ -2787,6 +2825,7 @@ async function guardarVenta({ tipoTicket = 'venta' } = {}) {
     ));
     if (tipoTicket === 'cocina') {
       await generarTicketCocinaPDF(ventaRef.id, ventaData);
+      await generarTicketVentaPDF(ventaRef.id, ventaData);
     } else {
       await generarTicketVentaPDF(ventaRef.id, ventaData);
     }

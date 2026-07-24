@@ -230,6 +230,7 @@ console.log('Página web del Hotel Casa Usumacinta cargada correctamente ✓');
                 orderBy: firebaseFirestore.orderBy,
                 addDoc: firebaseFirestore.addDoc,
                 updateDoc: firebaseFirestore.updateDoc,
+                setDoc: firebaseFirestore.setDoc,
                 doc: firebaseFirestore.doc
             };
             return window.firestore;
@@ -686,6 +687,31 @@ console.log('Página web del Hotel Casa Usumacinta cargada correctamente ✓');
         }
     }
 
+    const COMPROBANTE_CHUNK_SIZE = 700000;
+
+    async function procesarComprobanteParaFirestore(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => {
+                const dataUrl = reader.result;
+                const commaIdx = dataUrl.indexOf(',');
+                const header = dataUrl.substring(0, commaIdx + 1);
+                const base64 = dataUrl.substring(commaIdx + 1);
+                if (base64.length <= COMPROBANTE_CHUNK_SIZE) {
+                    resolve({ header, chunked: false, inline: base64 });
+                } else {
+                    const chunks = [];
+                    for (let i = 0; i < base64.length; i += COMPROBANTE_CHUNK_SIZE) {
+                        chunks.push(base64.substring(i, i + COMPROBANTE_CHUNK_SIZE));
+                    }
+                    resolve({ header, chunked: true, chunks });
+                }
+            };
+            reader.onerror = () => reject(new Error('Error leyendo el archivo de comprobante'));
+            reader.readAsDataURL(file);
+        });
+    }
+
     function calcularCambio() {
         const totalInput = document.getElementById('totalReserva');
         const efectivoInput = document.getElementById('efectivoRecibido');
@@ -761,9 +787,7 @@ console.log('Página web del Hotel Casa Usumacinta cargada correctamente ✓');
             const precioNoche = parseFloat(roomData.precioNoche) || 0;
             let totalReserva = precioNoche * diffDays;
             totalReserva = (totalReserva * porcentajePago) / 100;
-            const proofRef = helpers.ref(helpers.storage, `comprobantes/${Date.now()}_${comprobanteFile.name}`);
-            await helpers.uploadBytes(proofRef, comprobanteFile);
-            const paymentProofUrl = await helpers.getDownloadURL(proofRef);
+            const comprobanteData = await procesarComprobanteParaFirestore(comprobanteFile);
             const reservaData = {
                 guestId: huespedesIds[0],
                 guestName: nombres[0].value.trim(),
@@ -782,8 +806,9 @@ console.log('Página web del Hotel Casa Usumacinta cargada correctamente ✓');
                 totalOriginal: precioNoche * diffDays,
                 total: totalReserva,
                 paymentProofName: comprobanteFile.name,
-                paymentProofUrl: paymentProofUrl,
-                paymentProofPath: proofRef.fullPath,
+                paymentProofHeader: comprobanteData.header,
+                paymentProofInline: comprobanteData.chunked ? '' : comprobanteData.inline,
+                paymentProofChunked: comprobanteData.chunked,
                 bankClabe: facturar === 'si' ? 'XXXXXXXX' : '012796015605553236',
                 bankName: facturar === 'si' ? 'XXXXXX' : 'BBVA',
                 efectivoRecibido: null,
@@ -792,6 +817,11 @@ console.log('Página web del Hotel Casa Usumacinta cargada correctamente ✓');
                 creado: new Date()
             };
             const reservaRef = await addDoc(collection(db, 'reservas'), reservaData);
+            if (comprobanteData.chunked) {
+                await Promise.all(comprobanteData.chunks.map((chunk, idx) =>
+                    setDoc(doc(db, 'reservas', reservaRef.id, 'comprobanteChunks', `chunk${idx + 1}`), { data: chunk })
+                ));
+            }
             await updateDoc(doc(db, 'habitaciones', habitacionId), { estado: 'Ocupada', actualizado: new Date() });
             await generarTicketReservaPDF(reservaRef.id, reservaData, roomData, nombres[0].value.trim(), telefonos[0].value.trim());
             alert(`Reserva creada correctamente!\nHabitación: ${roomData.numero}\nCheck-in: ${checkInVal}\nCheck-out: ${checkOutVal}\nTotal: $${totalReserva.toFixed(2)}`);
