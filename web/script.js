@@ -289,7 +289,7 @@ console.log('Página web del Hotel Casa Usumacinta cargada correctamente ✓');
         if (body) body.innerHTML = '';
     }
 
-    function abrirModalReserva(capacidad, roomLabel = '') {
+    function abrirModalReserva(capacidad, roomLabel = '', roomId = '') {
         const modal = document.getElementById('reservaModal');
         const body = document.getElementById('reservaModalBody');
         if (!modal || !body) return;
@@ -387,11 +387,11 @@ console.log('Página web del Hotel Casa Usumacinta cargada correctamente ✓');
         `;
 
         modal.style.display = 'flex';
-        seleccionarCantidad(1);
+        seleccionarCantidad(1, roomLabel, roomId);
         actualizarPorcentajePago();
         actualizarDatosBancarios();
         attachFacturarListeners();
-        if (capacidad) actualizarHabitacionesPorCapacidad(capacidad, roomLabel);
+        if (capacidad) actualizarHabitacionesPorCapacidad(capacidad, roomLabel, roomId);
     }
 
     function attachFacturarListeners() {
@@ -422,6 +422,25 @@ console.log('Página web del Hotel Casa Usumacinta cargada correctamente ✓');
             candidata.setDate(candidata.getDate() + 1);
         }
         return candidata;
+    }
+
+    function rangoTieneFechaBloqueada(checkIn, checkOut, fechasBloqueadas) {
+        if (!checkIn || !checkOut) return false;
+        const fechaActual = new Date(checkIn);
+        fechaActual.setHours(12, 0, 0, 0);
+        const fechaFin = new Date(checkOut);
+        fechaFin.setHours(12, 0, 0, 0);
+        while (fechaActual < fechaFin) {
+            if (fechasBloqueadas.has(formatearFechaInput(fechaActual))) {
+                return true;
+            }
+            fechaActual.setDate(fechaActual.getDate() + 1);
+        }
+        return false;
+    }
+
+    function fechasSeSolapan(inicioA, finA, inicioB, finB) {
+        return inicioA < finB && inicioB < finA;
     }
 
     async function actualizarFechasDisponibles() {
@@ -467,12 +486,19 @@ console.log('Página web del Hotel Casa Usumacinta cargada correctamente ✓');
 
             const checkInActual = checkInInput.value;
             const checkInParsed = checkInActual ? parsearFechaInput(checkInActual) : null;
-            const checkInValido = !!checkInParsed && checkInParsed >= hoy && !fechasBloqueadas.has(checkInActual);
+            const checkInBloqueado = checkInActual && fechasBloqueadas.has(checkInActual);
+            const checkInValido = !!checkInParsed && checkInParsed >= hoy && !checkInBloqueado;
             let nuevoCheckIn = checkInActual;
+
             if (!checkInValido) {
+                if (checkInBloqueado) {
+                    alert('Selecciona otra fecha disponible: esta habitación ya está reservada en el rango seleccionado.');
+                    return;
+                }
                 const fechaDisponible = encontrarSiguienteFechaDisponible(hoy, fechasBloqueadas);
                 nuevoCheckIn = formatearFechaInput(fechaDisponible);
             }
+
             if (nuevoCheckIn !== checkInActual) {
                 checkInInput.value = nuevoCheckIn;
             }
@@ -484,14 +510,30 @@ console.log('Página web del Hotel Casa Usumacinta cargada correctamente ✓');
 
             const checkOutActual = checkOutInput.value;
             const checkOutParsed = checkOutActual ? parsearFechaInput(checkOutActual) : null;
-            const checkOutValido = !!checkOutParsed && checkOutParsed > checkInDate && !fechasBloqueadas.has(checkOutActual);
+            const checkOutBloqueado = checkOutActual && fechasBloqueadas.has(checkOutActual);
+            const checkOutValido = !!checkOutParsed && checkOutParsed > checkInDate && !checkOutBloqueado;
             let nuevoCheckOut = checkOutActual;
+
             if (!checkOutValido) {
+                if (checkOutBloqueado) {
+                    alert('Selecciona otra fecha disponible: esta habitación ya está reservada en el rango seleccionado.');
+                    return;
+                }
                 const checkoutDisponible = encontrarSiguienteFechaDisponible(checkoutMin, fechasBloqueadas);
                 nuevoCheckOut = formatearFechaInput(checkoutDisponible);
             }
+
             if (nuevoCheckOut !== checkOutActual) {
                 checkOutInput.value = nuevoCheckOut;
+            }
+
+            const checkOutDate = parsearFechaInput(checkOutInput.value);
+            if (checkInDate && checkOutDate && checkOutDate > checkInDate) {
+                const rangoBloqueado = rangoTieneFechaBloqueada(checkInDate, checkOutDate, fechasBloqueadas);
+                if (rangoBloqueado) {
+                    alert('Selecciona otra fecha disponible: la habitación ya está reservada en el rango seleccionado.');
+                    return;
+                }
             }
 
             calcularTotal();
@@ -513,13 +555,13 @@ console.log('Página web del Hotel Casa Usumacinta cargada correctamente ✓');
         }
     }
 
-    function seleccionarCantidad(cantidad) {
+    function seleccionarCantidad(cantidad, roomLabel = '', roomId = '') {
         document.querySelectorAll('.cantidad-btn').forEach(btn => {
             btn.classList.toggle('active', Number(btn.dataset.cantidad) === cantidad);
         });
         document.getElementById('cantidadHuespedes').value = cantidad;
         generarFormulariosHuespedes();
-        actualizarHabitacionesPorCapacidad(cantidad);
+        actualizarHabitacionesPorCapacidad(cantidad, roomLabel, roomId);
         setTimeout(() => {
             const checkInInput = document.getElementById('checkInDate');
             const checkOutInput = document.getElementById('checkOutDate');
@@ -549,7 +591,7 @@ console.log('Página web del Hotel Casa Usumacinta cargada correctamente ✓');
         }, 50);
     }
 
-    async function actualizarHabitacionesPorCapacidad(cantidad, roomLabel = '') {
+    async function actualizarHabitacionesPorCapacidad(cantidad, roomLabel = '', roomId = '') {
         const helpers = await getFirestoreHelpers();
         if (!helpers) return;
         const { db, collection, getDocs } = helpers;
@@ -559,29 +601,91 @@ console.log('Página web del Hotel Casa Usumacinta cargada correctamente ✓');
         try {
             const roomsSnap = await getDocs(collection(db, 'habitaciones'));
             let roomsOptions = '<option value="">Selecciona habitación</option>';
-            let primeraHabitacionId = '';
-            const normalizedLabel = (roomLabel || '').toLowerCase().trim();
+            const nombreBuscado = (roomLabel || '').toLowerCase().trim();
+            const idSeleccionado = roomId || '';
+            const numeroBuscado = (() => {
+                const candidatos = [roomId, roomLabel, cantidad];
+                for (const candidato of candidatos) {
+                    if (candidato === undefined || candidato === null || candidato === '') continue;
+                    const texto = String(candidato).trim();
+                    const match = texto.match(/(\d+)/);
+                    if (match) return Number.parseInt(match[1], 10);
+                }
+                return null;
+            })();
+            const prefijoHabitacion = nombreBuscado.includes('habitación') || nombreBuscado.includes('habitacion') ? 'habitación' : '';
 
+            const habitacionesTodas = [];
             roomsSnap.forEach(r => {
                 const data = r.data();
-                const capacity = parseInt(data.capacidad, 10);
-                if (data.estado === 'Disponible' && capacity === cantidad) {
-                    if (!primeraHabitacionId) primeraHabitacionId = r.id;
-                    const tipoTexto = (data.tipo || '').toString().toLowerCase();
-                    const coincideConLabel = normalizedLabel && (tipoTexto.includes(normalizedLabel.replace(/^habitación\s+/, '')) || normalizedLabel.includes(tipoTexto));
-                    if (!normalizedLabel || coincideConLabel) {
-                        primeraHabitacionId = r.id;
+                const estadoTexto = String(data.estado || '').trim().toLowerCase();
+                const esDisponible = ['disponible', 'libre', 'free', 'available', 'vacante', 'vacía', 'vacia'].includes(estadoTexto);
+                const tipoTexto = (data.tipo || '').toString().toLowerCase();
+                const numeroTexto = String(data.numero || '').toLowerCase();
+                const nombreCoincide = !nombreBuscado || tipoTexto.includes(nombreBuscado.replace(/^habitación\s+/, '')) || numeroTexto.includes(nombreBuscado) || nombreBuscado.includes(tipoTexto);
+                const numeroExtraido = (() => {
+                    const candidatos = [data.numero, data.numeroHabitacion, data.habitacion, data.hab, data.roomNumber, data.nombre, data.tipo, r.id];
+                    for (const candidato of candidatos) {
+                        if (candidato === undefined || candidato === null || candidato === '') continue;
+                        const texto = String(candidato).trim();
+                        const match = texto.match(/(\d+)/);
+                        if (match) return Number.parseInt(match[1], 10);
                     }
-                    roomsOptions += `<option value="${r.id}">${data.numero} - ${data.tipo} (Capacidad: ${data.capacidad})</option>`;
-                }
+                    return null;
+                })();
+                const numeroData = numeroExtraido !== null ? numeroExtraido : (Number.parseInt(String(data.numero || '').replace(/\D/g, ''), 10) || null);
+                const coincideConSeleccion = !idSeleccionado || r.id === idSeleccionado || String(data.numero) === String(idSeleccionado) || (numeroBuscado && numeroData === numeroBuscado) || (numeroBuscado && String(data.numero) === String(numeroBuscado)) || (nombreBuscado && (String(data.numero || '').toLowerCase().includes(nombreBuscado) || nombreBuscado.includes(String(data.numero || '').toLowerCase()))) || (numeroBuscado && String(data.numero || '').toLowerCase().includes(`habitación ${numeroBuscado}`) || String(data.numero || '').toLowerCase().includes(String(numeroBuscado)));
+                habitacionesTodas.push({
+                    id: r.id,
+                    data,
+                    nombreCoincide,
+                    coincideConSeleccion,
+                    esDisponible,
+                    numero: numeroData !== null ? numeroData : 999999,
+                    tipoTexto,
+                    estadoTexto
+                });
             });
 
-            selectHabitacion.innerHTML = roomsOptions;
-            if (primeraHabitacionId) {
-                selectHabitacion.value = primeraHabitacionId;
-                calcularTotal();
-                setTimeout(() => actualizarFechasDisponibles(), 80);
+            const habitacionesAmostrar = [...habitacionesTodas];
+
+            habitacionesAmostrar.sort((a, b) => {
+                if (a.coincideConSeleccion && !b.coincideConSeleccion) return -1;
+                if (!a.coincideConSeleccion && b.coincideConSeleccion) return 1;
+                if (a.nombreCoincide && !b.nombreCoincide) return -1;
+                if (!a.nombreCoincide && b.nombreCoincide) return 1;
+                if (a.numero !== b.numero) return a.numero - b.numero;
+                return String(a.data.numero || '').localeCompare(String(b.data.numero || ''));
+            });
+
+            let habitacionFinal = '';
+            habitacionesAmostrar.forEach(item => {
+                if (!habitacionFinal && item.coincideConSeleccion) {
+                    habitacionFinal = item.id;
+                }
+                const estadoVisible = item.esDisponible ? 'Disponible' : (item.data.estado || 'Sin estado');
+                const tipoHabitacion = (item.data.tipo || 'Habitación').toString().trim();
+                const numeroHabitacion = item.numero !== 999999 ? `Habitación ${item.numero}` : (item.data.numero || 'Habitación');
+                const textoHabitacion = tipoHabitacion && tipoHabitacion !== 'Habitación'
+                    ? `${numeroHabitacion} - ${tipoHabitacion}`
+                    : numeroHabitacion;
+                roomsOptions += `<option value="${item.id}">${textoHabitacion} (${estadoVisible})</option>`;
+            });
+
+            if (!habitacionFinal && habitacionesAmostrar.length > 0) {
+                habitacionFinal = habitacionesAmostrar[0].id;
             }
+
+            selectHabitacion.innerHTML = roomsOptions;
+            requestAnimationFrame(() => {
+                if (habitacionFinal) {
+                    selectHabitacion.value = habitacionFinal;
+                    if (typeof calcularTotal === 'function') calcularTotal();
+                    setTimeout(() => {
+                        if (typeof actualizarFechasDisponibles === 'function') actualizarFechasDisponibles();
+                    }, 80);
+                }
+            });
         } catch (error) {
             console.error('Error actualizando habitaciones por capacidad:', error);
             selectHabitacion.innerHTML = '<option value="">Error cargando habitaciones</option>';
@@ -758,18 +862,6 @@ console.log('Página web del Hotel Casa Usumacinta cargada correctamente ✓');
             }
         }
         try {
-            const huespedesIds = [];
-            for (let i = 0; i < cantidad; i++) {
-                const hData = {
-                    nombreCompleto: nombres[i].value.trim(),
-                    telefono: telefonos[i].value.trim(),
-                    origen: origenes[i].value.trim(),
-                    correo: correos[i]?.value.trim() || '',
-                    creado: new Date()
-                };
-                const docRef = await addDoc(collection(db, 'huespedes'), hData);
-                huespedesIds.push(docRef.id);
-            }
             const checkIn = new Date(checkInVal + 'T12:00:00');
             const checkOut = new Date(checkOutVal + 'T12:00:00');
             if (checkOut <= checkIn) {
@@ -782,6 +874,41 @@ console.log('Página web del Hotel Casa Usumacinta cargada correctamente ✓');
                 return;
             }
             const roomData = roomDoc.data();
+
+            const reservasSnap = await getDocs(collection(db, 'reservas'));
+            const conflictos = [];
+            reservasSnap.forEach(docReserva => {
+                const reserva = { id: docReserva.id, ...docReserva.data() };
+                if (!reserva.roomId || reserva.roomId !== habitacionId) return;
+                if ((reserva.status || 'Confirmada') === 'Cancelada') return;
+                const reservaCheckIn = reserva.checkIn && reserva.checkIn.toDate ? reserva.checkIn.toDate() : new Date(reserva.checkIn);
+                const reservaCheckOut = reserva.checkOut && reserva.checkOut.toDate ? reserva.checkOut.toDate() : new Date(reserva.checkOut);
+                if (!(reservaCheckIn instanceof Date) || isNaN(reservaCheckIn) || !(reservaCheckOut instanceof Date) || isNaN(reservaCheckOut)) return;
+                if (fechasSeSolapan(reservaCheckIn, reservaCheckOut, checkIn, checkOut)) {
+                    conflictos.push(reserva);
+                }
+            });
+
+            if (conflictos.length > 0) {
+                const conflicto = conflictos[0];
+                const desde = new Date(conflicto.checkIn && conflicto.checkIn.toDate ? conflicto.checkIn.toDate() : conflicto.checkIn).toLocaleDateString('es-MX');
+                const hasta = new Date(conflicto.checkOut && conflicto.checkOut.toDate ? conflicto.checkOut.toDate() : conflicto.checkOut).toLocaleDateString('es-MX');
+                alert(`No se puede reservar esta habitación en las fechas seleccionadas. Ya está reservada del ${desde} al ${hasta}.`);
+                return;
+            }
+
+            const huespedesIds = [];
+            for (let i = 0; i < cantidad; i++) {
+                const hData = {
+                    nombreCompleto: nombres[i].value.trim(),
+                    telefono: telefonos[i].value.trim(),
+                    origen: origenes[i].value.trim(),
+                    correo: correos[i]?.value.trim() || '',
+                    creado: new Date()
+                };
+                const docRef = await addDoc(collection(db, 'huespedes'), hData);
+                huespedesIds.push(docRef.id);
+            }
             const diffTime = checkOut - checkIn;
             const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
             const precioNoche = parseFloat(roomData.precioNoche) || 0;
@@ -941,7 +1068,8 @@ console.log('Página web del Hotel Casa Usumacinta cargada correctamente ✓');
         const button = event.currentTarget;
         const capacidad = parseInt(button.dataset.roomCapacity || '1', 10);
         const roomLabel = button.dataset.roomLabel || '';
-        abrirModalReserva(capacidad, roomLabel);
+        const roomId = button.dataset.roomId || '';
+        abrirModalReserva(capacidad, roomLabel, roomId);
     }
 
     function initializeReservaFeature() {

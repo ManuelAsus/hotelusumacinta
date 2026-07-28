@@ -100,7 +100,7 @@
                             <span><i class="fas fa-snowflake"></i> Aire Acondicionado</span>
                         </div>
                         <p class="room-capacity"><i class="fas fa-bed"></i> Para 1 persona</p>
-                        <button class="btn btn-primary reservar-btn" type="button" data-room-capacity="1" data-room-label="Habitación Simple" onclick="abrirModalReserva(1, 'Habitación Simple')">Reservar</button>
+                        <button class="btn btn-primary reservar-btn" type="button" data-room-capacity="1" data-room-label="Habitación 1" data-room-id="1" onclick="abrirModalReserva(1, 'Habitación 1', '1')">Reservar</button>
                     </div>
                 </div>
 
@@ -116,7 +116,7 @@
                             <span><i class="fas fa-snowflake"></i> Aire Acondicionado</span>
                         </div>
                         <p class="room-capacity"><i class="fas fa-bed"></i> Para 2 personas</p>
-                        <button class="btn btn-primary reservar-btn" type="button" data-room-capacity="2" data-room-label="Habitación Doble" onclick="abrirModalReserva(2, 'Habitación Doble')">Reservar</button>
+                        <button class="btn btn-primary reservar-btn" type="button" data-room-capacity="2" data-room-label="Habitación 2" data-room-id="2" onclick="abrirModalReserva(2, 'Habitación 2', '2')">Reservar</button>
                     </div>
                 </div>
 
@@ -132,7 +132,7 @@
                             <span><i class="fas fa-snowflake"></i> Clima Dual</span>
                         </div>
                         <p class="room-capacity"><i class="fas fa-bed"></i> Para 2-4 personas</p>
-                        <button class="btn btn-primary reservar-btn" type="button" data-room-capacity="4" data-room-label="Suite Premium" onclick="abrirModalReserva(4, 'Suite Premium')">Reservar</button>
+                        <button class="btn btn-primary reservar-btn" type="button" data-room-capacity="4" data-room-label="Habitación 4" data-room-id="4" onclick="abrirModalReserva(4, 'Habitación 4', '4')">Reservar</button>
                     </div>
                 </div>
             </div>
@@ -396,13 +396,22 @@
                     const capacityMatch = capacityText.match(/(\d+)/);
                     if(capacityMatch) capacidad = parseInt(capacityMatch[1], 10);
 
+                    const titleText = (card.querySelector('h3')?.textContent || '').trim();
+                    const roomTitle = titleText || 'Habitación';
+                    const roomNumberMatch = roomTitle.match(/\b(\d+)\b/);
+                    const roomNumber = roomNumberMatch ? roomNumberMatch[1] : '';
+                    const roomLabel = roomNumber ? `Habitación ${roomNumber}` : roomTitle.replace(/^habitaci[oó]n\s+/i, '');
+                    const roomId = roomNumber || roomTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+
                     const btn = document.createElement('button');
                     btn.type = 'button';
                     btn.className = 'btn btn-primary reservar-btn';
                     btn.dataset.roomCapacity = capacidad;
+                    btn.dataset.roomLabel = roomLabel;
+                    btn.dataset.roomId = roomId || 'habitacion';
                     btn.textContent = 'Reservar';
                     btn.addEventListener('click', function(){
-                        if(window.abrirModalReserva) window.abrirModalReserva(capacidad);
+                        if(window.abrirModalReserva) window.abrirModalReserva(capacidad, roomLabel, roomId || 'habitacion');
                     });
                     roomInfo.appendChild(btn);
                 });

@@ -151,6 +151,9 @@ function cambiarSeccion(section) {
 }
 
 let calendarioMesActual = new Date();
+let reservasCalendarioCache = null;
+let reservasCalendarioPromise = null;
+let reservasCalendarioActual = [];
 
 function obtenerFechaNormalizada(value) {
   if (!value) return null;
@@ -164,6 +167,10 @@ function obtenerFechaNormalizada(value) {
       const d = new Date(value.seconds * 1000 + Math.floor(value.nanoseconds / 1e6));
       return new Date(d.getFullYear(), d.getMonth(), d.getDate());
     }
+    if (typeof value._seconds === 'number' && typeof value._nanoseconds === 'number') {
+      const d = new Date(value._seconds * 1000 + Math.floor(value._nanoseconds / 1e6));
+      return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    }
   }
 
   if (value instanceof Date) {
@@ -171,19 +178,40 @@ function obtenerFechaNormalizada(value) {
   }
 
   if (typeof value === 'string') {
-    const isoDateOnly = /^\d{4}-\d{2}-\d{2}$/.test(value.trim());
+    const trimmed = value.trim();
+    const isoDateOnly = /^\d{4}-\d{2}-\d{2}$/.test(trimmed);
     if (isoDateOnly) {
-      const [year, month, day] = value.split('-').map(Number);
+      const [year, month, day] = trimmed.split('-').map(Number);
       return new Date(year, month - 1, day);
+    }
+
+    const parsed = new Date(trimmed);
+    if (!Number.isNaN(parsed.getTime())) {
+      return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
     }
   }
 
-  const parsed = new Date(value);
-  if (!Number.isNaN(parsed.getTime())) {
-    return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
+  return null;
+}
+
+function obtenerRangoReserva(data = {}) {
+  const camposInicio = ['checkIn', 'checkInDate', 'fechaEntrada', 'fechaInicio', 'startDate', 'start'];
+  const camposFin = ['checkOut', 'checkOutDate', 'fechaSalida', 'fechaFin', 'endDate', 'end'];
+
+  let start = null;
+  let end = null;
+
+  for (const campo of camposInicio) {
+    start = obtenerFechaNormalizada(data[campo]);
+    if (start) break;
   }
 
-  return null;
+  for (const campo of camposFin) {
+    end = obtenerFechaNormalizada(data[campo]);
+    if (end) break;
+  }
+
+  return { start, end };
 }
 
 function formatearFechaCorta(value) {
@@ -199,7 +227,49 @@ function formatearFechaCorta(value) {
 
 function moverCalendario(delta) {
   calendarioMesActual = new Date(calendarioMesActual.getFullYear(), calendarioMesActual.getMonth() + delta, 1);
-  renderCalendario();
+  renderCalendario(reservasCalendarioActual);
+}
+
+async function obtenerReservasCalendario() {
+  if (reservasCalendarioCache) {
+    return reservasCalendarioCache;
+  }
+
+  if (!reservasCalendarioPromise) {
+    reservasCalendarioPromise = (async () => {
+      const reservasSnap = await getDocs(collection(db, 'reservas'));
+      const hoy = new Date();
+      const reservas = reservasSnap.docs
+        .map(docSnap => {
+          const data = docSnap.data() || {};
+          const { start, end } = obtenerRangoReserva(data);
+          if (!start || !end) return null;
+
+          const estado = (data.status || 'Confirmada').toString().trim();
+          return {
+            id: docSnap.id,
+            ...data,
+            start,
+            end,
+            esActual: start <= hoy && hoy <= end && estado !== 'Cancelada'
+          };
+        })
+        .filter(Boolean)
+        .sort((a, b) => (a.start?.getTime() || 0) - (b.start?.getTime() || 0));
+
+      reservasCalendarioCache = reservas;
+      reservasCalendarioActual = reservas;
+      return reservas;
+    })().catch(error => {
+      console.error('Error cargando reservas del calendario', error);
+      reservasCalendarioCache = [];
+      throw error;
+    }).finally(() => {
+      reservasCalendarioPromise = null;
+    });
+  }
+
+  return reservasCalendarioPromise;
 }
 
 async function cargarCalendario() {
@@ -209,21 +279,7 @@ async function cargarCalendario() {
   container.innerHTML = '<div class="empty-message"><i class="fas fa-spinner fa-spin"></i> Cargando calendario...</div>';
 
   try {
-    const reservasSnap = await getDocs(query(collection(db, 'reservas'), orderBy('checkIn', 'asc')));
-    const hoy = new Date();
-    const reservas = reservasSnap.docs.map(docSnap => {
-      const data = docSnap.data();
-      const start = obtenerFechaNormalizada(data.checkIn);
-      const end = obtenerFechaNormalizada(data.checkOut);
-      return {
-        id: docSnap.id,
-        ...data,
-        start,
-        end,
-        esActual: start && end && start <= hoy && hoy <= end && (data.status || 'Confirmada') !== 'Cancelada'
-      };
-    }).filter(item => item.start && item.end);
-
+    const reservas = await obtenerReservasCalendario();
     renderCalendario(reservas);
   } catch (error) {
     console.error('Error cargando calendario', error);
@@ -231,7 +287,7 @@ async function cargarCalendario() {
   }
 }
 
-function renderCalendario(reservas = []) {
+function renderCalendario(reservas = reservasCalendarioActual) {
   const container = document.getElementById('calendarioContent');
   if (!container) return;
 
@@ -741,9 +797,24 @@ function seleccionarCantidad(cantidad) {
     const checkOutInput = document.getElementById('checkOutDate');
     const habitacionSelect = document.getElementById('huespedHabitacion');
     
-    if (checkInInput) checkInInput.addEventListener('change', calcularTotal);
-    if (checkOutInput) checkOutInput.addEventListener('change', calcularTotal);
-    if (habitacionSelect) habitacionSelect.addEventListener('change', calcularTotal);
+    if (checkInInput) {
+      checkInInput.addEventListener('change', async () => {
+        await validarFechasHabitacionSeleccionadas();
+        calcularTotal();
+      });
+    }
+    if (checkOutInput) {
+      checkOutInput.addEventListener('change', async () => {
+        await validarFechasHabitacionSeleccionadas();
+        calcularTotal();
+      });
+    }
+    if (habitacionSelect) {
+      habitacionSelect.addEventListener('change', async () => {
+        await validarFechasHabitacionSeleccionadas();
+        calcularTotal();
+      });
+    }
   }, 100);
 }
 
@@ -950,6 +1021,44 @@ function generarFormulariosHuespedes() {
   container.innerHTML = html;
 }
 
+function fechasSeSolapan(inicioA, finA, inicioB, finB) {
+  return inicioA < finB && inicioB < finA;
+}
+
+async function habitacionTieneConflictoDeFechas(habitacionId, checkIn, checkOut) {
+  if (!habitacionId || !checkIn || !checkOut) return false;
+  const reservasSnap = await getDocs(query(collection(db, 'reservas'), where('roomId', '==', habitacionId)));
+  let conflicto = false;
+  reservasSnap.forEach(d => {
+    const r = d.data();
+    if ((r.status || 'Confirmada') === 'Cancelada') return;
+    const rIn = r.checkIn && r.checkIn.toDate ? r.checkIn.toDate() : new Date(r.checkIn);
+    const rOut = r.checkOut && r.checkOut.toDate ? r.checkOut.toDate() : new Date(r.checkOut);
+    if (fechasSeSolapan(rIn, rOut, checkIn, checkOut)) {
+      conflicto = true;
+    }
+  });
+  return conflicto;
+}
+
+async function validarFechasHabitacionSeleccionadas() {
+  const habitacionId = document.getElementById('huespedHabitacion')?.value;
+  const checkInVal = document.getElementById('checkInDate')?.value;
+  const checkOutVal = document.getElementById('checkOutDate')?.value;
+  if (!habitacionId || !checkInVal || !checkOutVal) return true;
+
+  const checkIn = new Date(checkInVal + 'T12:00:00');
+  const checkOut = new Date(checkOutVal + 'T12:00:00');
+  if (checkOut <= checkIn) return true;
+
+  const tieneConflicto = await habitacionTieneConflictoDeFechas(habitacionId, checkIn, checkOut);
+  if (tieneConflicto) {
+    alert('Selecciona otra fecha disponible para esta habitación.');
+    return false;
+  }
+  return true;
+}
+
 async function guardarMultiplesHuespedes(requireReservation = false) {
   const cantidad = parseInt(document.getElementById('cantidadHuespedes').value, 10) || 1;
   const habitacionId = document.getElementById('huespedHabitacion').value;
@@ -991,6 +1100,19 @@ async function guardarMultiplesHuespedes(requireReservation = false) {
     // Si es efectivo, validar que esté completo el efectivo recibido
     if (tipoPago === 'Efectivo' && !efectivoRecibido) {
       alert('Ingresa el efectivo recibido');
+      return;
+    }
+
+    const checkIn = new Date(checkInVal + 'T12:00:00');
+    const checkOut = new Date(checkOutVal + 'T12:00:00');
+    if (checkOut <= checkIn) {
+      alert('La fecha de check-out debe ser posterior a check-in');
+      return;
+    }
+
+    const conflicto = await habitacionTieneConflictoDeFechas(habitacionId, checkIn, checkOut);
+    if (conflicto) {
+      alert('Selecciona otra fecha disponible para esta habitación.');
       return;
     }
   }
@@ -1264,14 +1386,24 @@ async function cargarHabitaciones(search = '', estado = '') {
 
     habitacionesFiltradas.forEach(habitacion => {
       const hoy = new Date();
-      const reservaActual = reservas.find(reserva => {
+      const hoySinHora = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+
+      const reservasDeHabitacion = reservas.filter(reserva => {
         if (!reserva.roomId || reserva.roomId !== habitacion.id) return false;
+        if ((reserva.status || 'Confirmada') === 'Cancelada') return false;
+        return true;
+      });
+
+      const reservaActual = reservasDeHabitacion.find(reserva => {
         const checkIn = reserva.checkIn && reserva.checkIn.toDate ? reserva.checkIn.toDate() : new Date(reserva.checkIn);
         const checkOut = reserva.checkOut && reserva.checkOut.toDate ? reserva.checkOut.toDate() : new Date(reserva.checkOut);
-        return checkIn <= hoy && hoy < checkOut && (reserva.status || 'Confirmada') !== 'Cancelada';
-      });
-      const reservaProxima = reservas
-        .filter(reserva => reserva.roomId === habitacion.id && (reserva.status || 'Confirmada') !== 'Cancelada')
+        const checkInSinHora = new Date(checkIn.getFullYear(), checkIn.getMonth(), checkIn.getDate());
+        const checkOutSinHora = new Date(checkOut.getFullYear(), checkOut.getMonth(), checkOut.getDate());
+        return checkInSinHora <= hoySinHora && hoySinHora < checkOutSinHora;
+      }) || null;
+
+      const reservaProxima = reservasDeHabitacion
+        .slice()
         .sort((a, b) => {
           const aStart = a.checkIn && a.checkIn.toDate ? a.checkIn.toDate() : new Date(a.checkIn);
           const bStart = b.checkIn && b.checkIn.toDate ? b.checkIn.toDate() : new Date(b.checkIn);
@@ -1280,8 +1412,10 @@ async function cargarHabitaciones(search = '', estado = '') {
         .find(reserva => {
           const checkIn = reserva.checkIn && reserva.checkIn.toDate ? reserva.checkIn.toDate() : new Date(reserva.checkIn);
           const checkOut = reserva.checkOut && reserva.checkOut.toDate ? reserva.checkOut.toDate() : new Date(reserva.checkOut);
-          return checkIn > hoy && checkOut > hoy;
-        });
+          const checkInSinHora = new Date(checkIn.getFullYear(), checkIn.getMonth(), checkIn.getDate());
+          const checkOutSinHora = new Date(checkOut.getFullYear(), checkOut.getMonth(), checkOut.getDate());
+          return checkInSinHora > hoySinHora && checkOutSinHora > hoySinHora;
+        }) || null;
       const enUsoPor = reservaActual ? (reservaActual.guestName || '—') : '—';
       const enUsoProximo = reservaProxima ? `${reservaProxima.guestName || '—'}<br><span style="font-size:11px;color:#6b7280;">${formatDate(reservaProxima.checkIn)} - ${formatDate(reservaProxima.checkOut)}</span>` : '—';
       const estadoVisible = reservaActual ? 'Ocupada' : 'Disponible';
@@ -1557,15 +1691,15 @@ async function mostrarFormularioReserva(reserva = null) {
         </div>
         <div>
           <label for="reservaRoom">Habitación</label>
-          <select id="reservaRoom">${roomsOptions}</select>
+          <select id="reservaRoom" onchange="actualizarTotalReserva(); actualizarRestanteReserva();">${roomsOptions}</select>
         </div>
         <div>
           <label for="reservaCheckIn">Check-in</label>
-          <input id="reservaCheckIn" type="date" value="${checkIn}">
+          <input id="reservaCheckIn" type="date" value="${checkIn}" onchange="actualizarTotalReserva(); actualizarRestanteReserva();">
         </div>
         <div>
           <label for="reservaCheckOut">Check-out</label>
-          <input id="reservaCheckOut" type="date" value="${checkOut}">
+          <input id="reservaCheckOut" type="date" value="${checkOut}" onchange="actualizarTotalReserva(); actualizarRestanteReserva();">
         </div>
         <div>
           <label for="reservaStatus">Estado</label>
@@ -1600,6 +1734,10 @@ async function mostrarFormularioReserva(reserva = null) {
   `;
 
   document.getElementById('modal').classList.add('active');
+  setTimeout(() => {
+    actualizarTotalReserva();
+    actualizarRestanteReserva();
+  }, 50);
 }
 
 function actualizarRestanteReserva() {
@@ -1609,6 +1747,38 @@ function actualizarRestanteReserva() {
   const restante = restantePagado ? 0 : Math.max(0, totalOriginal - totalPagado);
   const restanteInput = document.getElementById('reservaRestante');
   if (restanteInput) restanteInput.value = restante.toFixed(2);
+}
+
+async function actualizarTotalReserva() {
+  const roomId = document.getElementById('reservaRoom')?.value;
+  const checkInVal = document.getElementById('reservaCheckIn')?.value;
+  const checkOutVal = document.getElementById('reservaCheckOut')?.value;
+  const totalOriginalInput = document.getElementById('reservaTotalOriginal');
+  const totalPagadoInput = document.getElementById('reservaTotal');
+  if (!roomId || !checkInVal || !checkOutVal || !totalOriginalInput) return;
+
+  const checkIn = new Date(checkInVal + 'T12:00:00');
+  const checkOut = new Date(checkOutVal + 'T12:00:00');
+  if (checkOut <= checkIn) return;
+
+  const roomDoc = await getDoc(doc(db, 'habitaciones', roomId));
+  if (!roomDoc.exists()) return;
+
+  const precioNoche = parseFloat(roomDoc.data().precioNoche) || 0;
+  const diffTime = checkOut - checkIn;
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  if (diffDays <= 0) return;
+
+  const totalOriginal = precioNoche * diffDays;
+  totalOriginalInput.value = totalOriginal.toFixed(2);
+  if (totalPagadoInput) {
+    const totalPagado = parseFloat(totalPagadoInput.value) || 0;
+    const restantePagado = document.getElementById('reservaRestantePagado')?.checked || false;
+    const restanteInput = document.getElementById('reservaRestante');
+    if (restanteInput) {
+      restanteInput.value = restantePagado ? '0.00' : Math.max(0, totalOriginal - totalPagado).toFixed(2);
+    }
+  }
 }
 
 async function guardarReserva(reservaId = '') {
@@ -1647,27 +1817,29 @@ async function guardarReserva(reservaId = '') {
 
     // Verificar conflictos: reservas existentes para la habitación
     const reservasSnap = await getDocs(query(collection(db, 'reservas'), where('roomId', '==', roomId)));
-    let conflict = false;
+    const conflictos = [];
     reservasSnap.forEach(d => {
-      if (reservaId && d.id === reservaId) return; // ignore same
+      if (reservaId && d.id === reservaId) return; // ignore same reservation when editing
       const r = d.data();
+      if ((r.status || 'Confirmada') === 'Cancelada') return;
       const rIn = r.checkIn && r.checkIn.toDate ? r.checkIn.toDate() : new Date(r.checkIn);
       const rOut = r.checkOut && r.checkOut.toDate ? r.checkOut.toDate() : new Date(r.checkOut);
-      // overlap check
       if (!(checkOut <= rIn || checkIn >= rOut)) {
-        conflict = true;
+        conflictos.push(r);
       }
     });
 
-    if (conflict) {
-      if (!confirm('Hay conflicto con otra reserva en la misma habitación y fechas. ¿Deseas continuar igual?')) {
-        return;
-      }
+    if (conflictos.length > 0) {
+      const conflicto = conflictos[0];
+      const desde = new Date(conflicto.checkIn && conflicto.checkIn.toDate ? conflicto.checkIn.toDate() : conflicto.checkIn).toLocaleDateString('es-MX');
+      const hasta = new Date(conflicto.checkOut && conflicto.checkOut.toDate ? conflicto.checkOut.toDate() : conflicto.checkOut).toLocaleDateString('es-MX');
+      alert(`No se puede guardar la reserva: la habitación ya está reservada del ${desde} al ${hasta}.`);
+      return;
     }
 
     const currentReservaDoc = reservaId ? await getDoc(doc(db, 'reservas', reservaId)) : null;
     const currentReserva = currentReservaDoc && currentReservaDoc.exists() ? currentReservaDoc.data() : null;
-    const pagoOriginal = currentReserva ? parseFloat(currentReserva.totalOriginal || currentReserva.total || totalVal) : totalOriginalVal;
+    const pagoOriginal = totalOriginalVal || (currentReserva ? parseFloat(currentReserva.totalOriginal || currentReserva.total || totalVal) : totalVal);
     const porcentajePago = currentReserva ? (currentReserva.porcentajePago || 100) : 100;
     const paymentMethod = currentReserva ? (currentReserva.paymentMethod || 'Transferencia') : 'Transferencia';
     const tipoReserva = currentReserva ? (currentReserva.tipoReserva || 'Con Tiempo de Espera') : 'Con Tiempo de Espera';

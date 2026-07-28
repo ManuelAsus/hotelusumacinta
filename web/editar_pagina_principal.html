@@ -138,7 +138,9 @@
       docText: null,
       parser: new DOMParser(),
       serializer: new XMLSerializer(),
-      replacements: {}
+      replacements: {},
+      deletions: {},
+      uploadedImages: new Map()
     };
 
     function saveToLocalStorage(html){
@@ -305,7 +307,7 @@
 
     // utility to mark deletions
     function markDeletion(key, previewId){
-      state.replacements[key] = null;
+      delete state.replacements[key];
       state.deletions = state.deletions || {};
       state.deletions[key] = true;
       if(previewId) document.getElementById(previewId).src = '';
@@ -534,6 +536,21 @@
       });
     }
 
+    async function storeImageDataURL(dataUrl){
+      if(!dataUrl) return null;
+      if(state.uploadedImages.has(dataUrl)) return state.uploadedImages.get(dataUrl);
+      const [header, base64] = dataUrl.split(',', 2);
+      const id = 'img_'+Date.now()+'_'+Math.random().toString(36).slice(2,9);
+      await setDoc(docRef(db,'images',id), {header: header + ',', createdAt: new Date().toISOString()});
+      const chunkCount = Math.ceil(base64.length / CHUNK_SIZE);
+      for(let index = 0; index < chunkCount; index++){
+        const chunk = base64.slice(index * CHUNK_SIZE, (index + 1) * CHUNK_SIZE);
+        await setDoc(docRef(db,'images',id,'chunks',String(index)), {index, data: chunk});
+      }
+      state.uploadedImages.set(dataUrl, id);
+      return id;
+    }
+
     document.getElementById('generate').addEventListener('click', async ()=>{
       try{
         if(!state.docText){document.getElementById('status').textContent='Documento no cargado';return}
@@ -662,20 +679,6 @@
 
         const serializedLocal = '<!DOCTYPE html>\n' + doc.documentElement.outerHTML;
         document.getElementById('status').textContent='Guardando en Firebase...';
-
-        // backup to Firebase: store images chunked and store pages/index with FIREBASE_IMG placeholders
-        async function storeImageDataURL(dataUrl){
-          if(!dataUrl) return null;
-          const [header, base64] = dataUrl.split(',', 2);
-          const id = 'img_'+Date.now()+'_'+Math.random().toString(36).slice(2,9);
-          await setDoc(docRef(db,'images',id), {header: header + ',', createdAt: new Date().toISOString()});
-          const chunkCount = Math.ceil(base64.length / CHUNK_SIZE);
-          for(let index = 0; index < chunkCount; index++){
-            const chunk = base64.slice(index * CHUNK_SIZE, (index + 1) * CHUNK_SIZE);
-            await setDoc(docRef(db,'images',id,'chunks',String(index)), {index, data: chunk});
-          }
-          return id;
-        }
 
         // prepare a firebase-friendly copy
         const firebaseDoc = state.parser.parseFromString(serializedLocal,'text/html');
